@@ -1,0 +1,6 @@
+*.out
+*.jsonl
+*.gz
+*.pyc
+*.txt
+*.env
