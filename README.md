@@ -1,0 +1,1 @@
+# ds-trend-finder-collector
