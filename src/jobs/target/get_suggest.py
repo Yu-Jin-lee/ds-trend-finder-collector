@@ -441,13 +441,13 @@ if __name__ == "__main__":
     print(f"pid : {os.getpid()}")
 
     try:
-        entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"))
+        entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
         entity_daily.run()
     except Exception as e:
         print(f"[{datetime.now()}] 한국 서제스트 수집시 오류로 종료 (error : {e})")
     
     try:
-        entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"))
+        entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
         entity_daily.run()
     except Exception as e:
         print(f"[{datetime.now()}] 일본 서제스트 수집시 오류로 종료 (error : {e})")
