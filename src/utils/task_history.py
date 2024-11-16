@@ -12,7 +12,7 @@ class TaskStatus(Enum):
     FAILED = "Failed"
 
 class TaskHistory:
-    def __init__(self, db_config, project_name, task_name, job_id):
+    def __init__(self, db_config:dict, project_name:str, task_name:str, job_id, lang:str):
         """
         Initializes the database connection and sets the project, task, and job ID.
         :param db_config: Dictionary containing database configuration details.
@@ -24,8 +24,16 @@ class TaskHistory:
         self.project_name = project_name
         self.task_name = task_name
         self.job_id = job_id
+        self.lang = lang
+        self.schema = self.set_schema(lang)
         self.table_name = "task_history"
 
+    def set_schema(self, lang:str):
+        if lang == "ja":
+            return 'query_jp_ja'
+        else:
+            return 'public'
+        
     def connect_to_db(self):
         con = psycopg2.connect(
             host=self.db_config["host"],
@@ -44,7 +52,7 @@ class TaskHistory:
             connection = self.connect_to_db()
             with connection.cursor() as cursor:
                 query = sql.SQL(f"""
-                    INSERT INTO {self.table_name} (project_name, task_name, job_id, status, started_at)
+                    INSERT INTO {self.schema}.{self.table_name} (project_name, task_name, job_id, status, started_at)
                     VALUES (%s, %s, %s, %s, %s)
                 """)
                 cursor.execute(
@@ -64,7 +72,7 @@ class TaskHistory:
             connection = self.connect_to_db()
             with connection.cursor() as cursor:
                 query = sql.SQL(f"""
-                    UPDATE {self.table_name}
+                    UPDATE {self.schema}.{self.table_name}
                     SET status = %s, started_at = %s
                     WHERE project_name = %s AND task_name = %s AND job_id = %s
                 """)
@@ -85,7 +93,7 @@ class TaskHistory:
             connection = self.connect_to_db()
             with connection.cursor() as cursor:
                 query = sql.SQL(f"""
-                    UPDATE {self.table_name}
+                    UPDATE {self.schema}.{self.table_name}
                     SET status = %s, completed_at = %s
                     WHERE project_name = %s AND task_name = %s AND job_id = %s
                 """)
@@ -106,7 +114,7 @@ class TaskHistory:
             connection = self.connect_to_db()
             with connection.cursor() as cursor:
                 query = sql.SQL(f"""
-                    UPDATE {self.table_name}
+                    UPDATE {self.schema}.{self.table_name}
                     SET status = %s, completed_at = %s, info = %s
                     WHERE project_name = %s AND task_name = %s AND job_id = %s
                 """)

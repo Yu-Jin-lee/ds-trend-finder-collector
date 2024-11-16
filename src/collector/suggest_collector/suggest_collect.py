@@ -1,6 +1,6 @@
 import json
 import requests
-from tenacity import retry
+from tenacity import retry, stop_after_attempt
 from http import HTTPStatus
 from multiprocessing import Pool
 from typing import TYPE_CHECKING
@@ -21,41 +21,55 @@ class SuggestApiParams:
     ds:str = 'google'
     usage_id:str= "yujin.lee"
 
-@retry #(stop=(stop_after_attempt(10))) # 10번 시도했는데 계속 retry조건에 맞으면 에러를 발생함 -> 어떻게 대처?
-def get_suggestions(suggest_api_params : SuggestApiParams):
-    suggestions = []
+@retry(stop=stop_after_attempt(10))
+def get_suggestions(suggest_api_params):
     url = "http://google-suggest-api.ascentlab.io/api/suggest/v2/suggestions"
+    suggestions = []
+
     if suggest_api_params.ds == "youtube":
         _payload = {
-                "q" : f"{suggest_api_params.query}",
-                "hl": f"{suggest_api_params.hl}",
-                "gl": f"{suggest_api_params.gl}",
-                "ds": f"{suggest_api_params.ds}",
-                "usage_id": f"{suggest_api_params.usage_id}"
-            }
+            "q": f"{suggest_api_params.query}",
+            "hl": f"{suggest_api_params.hl}",
+            "gl": f"{suggest_api_params.gl}",
+            "ds": f"{suggest_api_params.ds}",
+            "usage_id": f"{suggest_api_params.usage_id}"
+        }
     else:
         _payload = {
-                "q" : f"{suggest_api_params.query}",
-                "hl": f"{suggest_api_params.hl}",
-                "gl": f"{suggest_api_params.gl}",
-                "usage_id": f"{suggest_api_params.usage_id}"
-            }
-    if suggest_api_params.pre_expand_keyword:
-        _payload['q'] = suggest_api_params.query
-        _payload['pre_expand_keyword'] = suggest_api_params.pre_expand_keyword
+            "q": f"{suggest_api_params.query}",
+            "hl": f"{suggest_api_params.hl}",
+            "gl": f"{suggest_api_params.gl}",
+            "usage_id": f"{suggest_api_params.usage_id}"
+        }
 
-    payload = json.dumps(_payload)       
+    if suggest_api_params.pre_expand_keyword:
+        _payload["q"] = suggest_api_params.query
+        _payload["pre_expand_keyword"] = suggest_api_params.pre_expand_keyword
+
+    payload = json.dumps(_payload)
     headers = {"Content-Type": "application/json"}
 
-    response = requests.post(url, headers=headers, data=payload, timeout=180.0)
-    status_code = response.status_code
-    
-    if status_code == HTTPStatus.OK:
-        suggestions = json.loads(response.text)
-        return suggestions
-    else:
-        print(f"fail to get suggest - retry : {_payload}")
-        raise Exception("error!")
+    try:
+        response = requests.post(url, headers=headers, data=payload, timeout=20)
+        status_code = response.status_code
+
+        if status_code == HTTPStatus.OK:
+            suggestions = json.loads(response.text)
+            return suggestions
+        else:
+            print(f"Failed to get suggestions - retrying: {_payload}")
+            raise Exception("API response error!")
+    except Exception as e:
+        print(f"Request failed: {e}")
+        raise
+
+# 최대 10번 재시도 후 실패할 경우 None 반환
+def fetch_suggestions(suggest_api_params):
+    try:
+        return get_suggestions(suggest_api_params)
+    except Exception:
+        print("Max retries reached. Returning None.")
+        return None
 
 class Suggest:
     def __init__(self):
@@ -77,5 +91,6 @@ class Suggest:
                                     for t in targets]
         print(targets[0])
         with Pool(num_processes) as pool:
-            result = pool.map(get_suggestions, targets)
+            result = pool.map(fetch_suggestions, targets)
+        result = [res for res in result if res is not None]
         return result

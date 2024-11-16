@@ -1,5 +1,6 @@
 import os
 import gc
+import math
 from datetime import datetime, timedelta
 from typing import List
 
@@ -15,13 +16,13 @@ from lang import Ko, Ja
 from config import postgres_db_config
 
 class EntitySuggestDaily:
-    def __init__(self, lang : str, service : str, log_task_history:bool=False):
+    def __init__(self, lang : str, service : str, job_id:str, log_task_history:bool=False):
         # 기본정보
         self.lang = lang
         self.service = service
         self.project_name = "trend_finder"
         self.suggest_type = "basic"
-        self.job_id = datetime.now().strftime("%Y%m%d%H")
+        self.job_id = job_id
 
         # local 관련
         self.local_folder_path = f"./data/result/{self.suggest_type}/{self.service}/{self.lang}"
@@ -39,7 +40,7 @@ class EntitySuggestDaily:
         # Task History 관련
         self.task_name = f"수집-서제스트-{service}-{self.suggest_type}"
         self.log_task_history = log_task_history
-        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id)
+        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id, self.lang)
 
         # slack 관련
         self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
@@ -76,6 +77,16 @@ class EntitySuggestDaily:
                     all_txt_files.append(f"{job_id_path}/{file}")
 
         return all_txt_files
+    
+    @error_notifier
+    def get_already_collected_keywords(self) -> List[str]:
+        already_collected_keywords = []
+        if os.path.exists(self.local_result_path):
+            print(f"[{datetime.now()}] 이미 수집된 서제스트 결과가 있습니다. (path : {self.local_result_path})")
+            for line in JsonlFileHandler(self.local_result_path).read_generator():
+                already_collected_keywords.append(line['keyword'])
+            print(f"[{datetime.now()}] ㄴ {len(already_collected_keywords)}개 키워드 수집되어 있음")
+        return list(set(already_collected_keywords))
     
     @error_notifier
     def get_one_week_ago_trend_keywords(self, today, lang) -> List[str]:
@@ -131,7 +142,7 @@ class EntitySuggestDaily:
                                        self.lang, 
                                        self.service, 
                                        num_processes = num_processes)
-            print(f"[{datetime.now()}]    ㄴ batch {i+1} finish : {datetime.now()-start}")
+            print(f"[{datetime.now()}]    ㄴ batch {int((i+batch_size)/batch_size)}/{math.ceil(len(targets)/batch_size)} finish : {datetime.now()-start}")
             JsonlFileHandler(result_file_path).write(result)
             # 트렌드 키워드 추출
             try:
@@ -164,6 +175,8 @@ class EntitySuggestDaily:
         # 기본 서제스트 수집
         print(f"[{datetime.now()}] 기본 서제스트 수집 시작 (총 수집할 개수 : {len(targets)}, process_num : {basic_num_process})")
         
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=basic_num_process)
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         print(f"[{datetime.now()}] 기본 서제스트 수집 완료")
@@ -259,16 +272,22 @@ class EntitySuggestDaily:
                 lang.suggest_extension_texts_by_rank("2_small") + \
                 lang.suggest_extension_texts_by_rank("3_small")
         print(f"[{datetime.now()}] 1, 2, 3 단계 extension text 추가 후 개수 {len(targets)} | process_num : {num_process}")
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         # 4단계 수집
         ## 2단계에서 valid한 서제스트가 valid_threshold개 이상인 완성형 문자로 시작하는 확장 문자만 수집
         targets = self.filtering_rank_4_targets()
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         # 5단계 수집
         ## 4단계에서 valid한 서제스트가 valid_threshold개 이상인 완성형 문자로 시작하는 확장 문자만 수집
         targets = self.filtering_rank_5_targets()
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
@@ -294,6 +313,7 @@ class EntitySuggestDaily:
 
     def run(self):
         try:
+            start_time = datetime.now()
             if self.log_task_history:
                 self.task_history_updater.set_task_start()
                 self.task_history_updater.set_task_in_progress()
@@ -309,33 +329,49 @@ class EntitySuggestDaily:
             
             if self.log_task_history:
                 self.task_history_updater.set_task_completed()
+            end_time = datetime.now()
         except Exception as e:
             print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
             ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 실패 작업 종료")
+            if self.log_task_history:
+                self.task_history_updater.set_task_error(error_msg=e)
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
-            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
+            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
 
 if __name__ == "__main__":
-    print(f"pid : {os.getgid()}")
+    pid = os.getgid()
+    print(f"pid : {pid}")
     
+    today = datetime.now().strftime("%Y%m%d")
+
     # 한국
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ko", "google")
+    entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 한국 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ko", "youtube")
+    entity_daily = EntitySuggestDaily("ko", "youtube", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
 
     # 일본
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ja", "google")
-    entity_daily.run()
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "google", job_id, log_task_history=True)
+    if today != job_id[:8]:
+        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+    else:
+        entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ja", "youtube")
-    entity_daily.run()
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "youtube", job_id, log_task_history=True)
+    if today != job_id[:8]:
+        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+    else:
+        entity_daily.run()

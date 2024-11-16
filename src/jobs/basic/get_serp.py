@@ -57,7 +57,7 @@ class EntitySerpDaily:
         # Task History 관련
         self.log_task_history = log_task_history
         self.task_name = f"수집-서프-{service}-{self.suggest_type}"
-        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id)
+        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id, self.lang)
         
         # slack 관련
         self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
@@ -121,10 +121,7 @@ class EntitySerpDaily:
             no_new_keywords_count = 0  # 새 키워드가 없었던 횟수
             
             # 새 키워드가 없는 것을 몇 번 확인할지 설정
-            if self.service == "youtube":
-                max_no_new_keywords_count = 30
-            else:
-                max_no_new_keywords_count = 30
+            max_no_new_keywords_count = 15
             
             already_collected_keywords = set() # 이미 수집한 키워드
             if os.path.exists(self.serp_download_local_path): # 서프 수집한 결과 있으면 추가
@@ -174,6 +171,8 @@ class EntitySerpDaily:
         except Exception as e:
             print(f"[{datetime.now()}] 서프 수집 실패 작업 종료\nError Msg : {e}")
             ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서프 수집 실패 작업 종료")
+            if self.log_task_history:
+                self.task_history_updater.set_task_error(error_msg=e)
         else:
             print(f"[{datetime.now()}] 서프 수집 완료")
             ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
@@ -201,13 +200,13 @@ if __name__ == "__main__":
     lang = "ko"
 
     service = "google"
-    entity_serp_daily = EntitySerpDaily(job_id, lang, service)
+    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
     entity_serp_daily.run()
 
     service = "youtube"
     job_id = find_last_job_id(suggest_type, lang, service, today)
     if int(job_id[-2:]) < 18: # 18시 이전 작업은 로그를 남기지 않음
-        entity_serp_daily = EntitySerpDaily(job_id, "ko", service)
+        entity_serp_daily = EntitySerpDaily(job_id, "ko", service, log_task_history=True)
     else: # 18시 이후 작업은 로그 남김
         entity_serp_daily = EntitySerpDaily(job_id, "ko", service, log_task_history=True)
     entity_serp_daily.run()
@@ -217,10 +216,10 @@ if __name__ == "__main__":
     
     service = "google"
     job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, "ja", service)
+    entity_serp_daily = EntitySerpDaily(job_id, "ja", service, log_task_history=True)
     entity_serp_daily.run()
 
     service = "youtube"
     job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, "ja", service)
+    entity_serp_daily = EntitySerpDaily(job_id, "ja", service, log_task_history=True)
     entity_serp_daily.run()
