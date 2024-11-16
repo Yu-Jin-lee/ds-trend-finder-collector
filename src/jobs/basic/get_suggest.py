@@ -340,8 +340,9 @@ class EntitySuggestDaily:
             ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
 
 if __name__ == "__main__":
-    print(f"pid : {os.getgid()}")
-    
+    pid = os.getgid()
+    print(f"pid : {pid}")
+
     # 한국
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
     entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
