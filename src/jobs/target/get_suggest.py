@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 
 from collector.suggest_collector.suggest_collect import Suggest
-from validator.trend_keyword_validator import is_trend_keyword, cnt_valid_suggest
+from validator.trend_keyword_validator import is_trend_keyword
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, JsonFileHandler, has_file_extension
 from utils.db import QueryDatabaseKo, QueryDatabaseJa
 from utils.text import extract_initial
@@ -16,7 +16,44 @@ from config import postgres_db_config
 from utils.decorator import error_notifier
 from utils.task_history import TaskHistory
 from utils.data import remove_duplicates_from_new_keywords
+from validator.suggest_validator import SuggestValidator
+from utils.text import extract_initial_next_target_keyword
 
+def cnt_valid_suggest(suggestions:List[dict], 
+                      target_keyword:str=None,
+                      extension:str=None, # 알파벳 확장 문자 (있을 경우 입력, 없을 경우:None)
+                      log:bool=False) -> int:
+    try:
+        # alphabets = list(string.ascii_lowercase)
+        cnt_valid = 0
+        for suggestion in suggestions:
+            if SuggestValidator.is_valid_suggest(suggestion['suggest_type'], suggestion['suggest_subtypes']):
+                if (target_keyword != None and
+                    extension != None): # 타겟 키워드와 확장 문자가 모두 있을 경우
+                    initial_next_target_keyword = extract_initial_next_target_keyword([suggestion['text']], target_keyword=target_keyword)
+                    if initial_next_target_keyword and len(initial_next_target_keyword) > 0:
+                        if initial_next_target_keyword[0] == extension:
+                            if log:
+                                print(f"✔️ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+                            cnt_valid += 1
+                        else:
+                            if log:
+                                print(f"❌❗ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+                    else:
+                        if log:
+                            print(f"❌❗ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+                else:
+                    if log:
+                        print(f"✔️ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+                    cnt_valid += 1
+            else:
+                if log:
+                    print(f"❌ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+        return cnt_valid
+    except Exception as e:
+        if log:
+            print(f"[{datetime.now()}] Error from cnt_valid_suggest: (target_keyword:{target_keyword}, extension:{extension}) | error msg : {e}")
+        return 0
 
 class EntitySuggestDaily:
     def __init__(self, lang : str, service : str, job_id, log_task_history:bool=False):
