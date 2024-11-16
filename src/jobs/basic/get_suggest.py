@@ -313,6 +313,7 @@ class EntitySuggestDaily:
 
     def run(self):
         try:
+            start_time = datetime.now()
             if self.log_task_history:
                 self.task_history_updater.set_task_start()
                 self.task_history_updater.set_task_in_progress()
@@ -328,12 +329,13 @@ class EntitySuggestDaily:
             
             if self.log_task_history:
                 self.task_history_updater.set_task_completed()
+            end_time = datetime.now()
         except Exception as e:
             print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
             ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 실패 작업 종료")
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
-            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
+            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
 
 if __name__ == "__main__":
     print(f"pid : {os.getgid()}")
