@@ -16,13 +16,13 @@ from lang import Ko, Ja
 from config import postgres_db_config
 
 class EntitySuggestDaily:
-    def __init__(self, lang : str, service : str, log_task_history:bool=False):
+    def __init__(self, lang : str, service : str, job_id:str, log_task_history:bool=False):
         # 기본정보
         self.lang = lang
         self.service = service
         self.project_name = "trend_finder"
         self.suggest_type = "basic"
-        self.job_id = datetime.now().strftime("%Y%m%d%H")
+        self.job_id = job_id
 
         # local 관련
         self.local_folder_path = f"./data/result/{self.suggest_type}/{self.service}/{self.lang}"
@@ -344,21 +344,23 @@ if __name__ == "__main__":
     
     # 한국
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ko", "google")
+    entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"))
     entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 한국 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ko", "youtube")
+    entity_daily = EntitySuggestDaily("ko", "youtube", datetime.now().strftime("%Y%m%d%H"))
     entity_daily.run()
 
     # 일본
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ja", "google")
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "google", job_id)
     entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ja", "youtube")
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "youtube", job_id)
     entity_daily.run()
