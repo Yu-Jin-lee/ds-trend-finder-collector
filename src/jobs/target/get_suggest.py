@@ -68,6 +68,16 @@ class EntitySuggestDaily:
             return QueryDatabaseJa.get_llm_entity_topic()
 
     @error_notifier
+    def get_already_collected_keywords(self) -> List[str]:
+        already_collected_keywords = []
+        if os.path.exists(self.local_result_path):
+            print(f"[{datetime.now()}] 이미 수집된 서제스트 결과가 있습니다. (path : {self.local_result_path})")
+            for line in JsonlFileHandler(self.local_result_path).read_generator():
+                already_collected_keywords.append(line['keyword'])
+            print(f"[{datetime.now()}] ㄴ {len(already_collected_keywords)}개 키워드 수집되어 있음")
+        return list(set(already_collected_keywords))
+        
+    @error_notifier
     def get_extension(self) -> List[str]:
         '''
         대상 키워드 있을 경우 확장 텍스트 가져오기
@@ -236,6 +246,8 @@ class EntitySuggestDaily:
             already_collected_texts = self.read_already_collected_text() # 이미 수집한 키워드 읽기
             targets = list(set(targets) - set(already_collected_texts))
             print(f"[{datetime.now()}] 이미 수집된 키워드 제외한 개수 {len(targets)}")
+            already_collected_keywords = self.get_already_collected_keywords()
+            targets = list(set(targets) - set(already_collected_keywords))
             self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=target_num_process)
             print(f"[{datetime.now()}] 대상 키워드 서제스트 0, 1 단계 수집 완료")
         except Exception as e:
@@ -277,6 +289,8 @@ class EntitySuggestDaily:
             already_collected_texts = self.read_already_collected_text()
             targets = list(set(targets) - set(already_collected_texts))
             print(f"[{datetime.now()}] 이미 수집된 키워드 제외한 개수 {len(targets)}")
+            already_collected_keywords = self.get_already_collected_keywords()
+            targets = list(set(targets) - set(already_collected_keywords))
             self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=target_num_process)
         except Exception as e:
             print(f"[{datetime.now()}] ERROR from get_target_charactor_suggest : {e}")
