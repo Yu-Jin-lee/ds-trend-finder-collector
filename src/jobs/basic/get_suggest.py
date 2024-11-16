@@ -1,5 +1,6 @@
 import os
 import gc
+import math
 from datetime import datetime, timedelta
 from typing import List
 
@@ -131,7 +132,7 @@ class EntitySuggestDaily:
                                        self.lang, 
                                        self.service, 
                                        num_processes = num_processes)
-            print(f"[{datetime.now()}]    ㄴ batch {i+1} finish : {datetime.now()-start}")
+            print(f"[{datetime.now()}]    ㄴ batch {int((i+batch_size)/batch_size)}/{math.ceil(len(targets)/batch_size)} finish : {datetime.now()-start}")
             JsonlFileHandler(result_file_path).write(result)
             # 트렌드 키워드 추출
             try:
