@@ -431,6 +431,8 @@ class EntitySuggestDaily:
         except Exception as e:
             print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
             ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 실패 작업 종료")
+            if self.log_task_history:
+                self.task_history.set_task_error(error_msg=e)
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
             ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
