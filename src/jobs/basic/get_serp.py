@@ -57,7 +57,7 @@ class EntitySerpDaily:
         # Task History 관련
         self.log_task_history = log_task_history
         self.task_name = f"수집-서프-{service}-{self.suggest_type}"
-        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id)
+        self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id, self.lang)
         
         # slack 관련
         self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
