@@ -342,6 +342,8 @@ class EntitySuggestDaily:
 if __name__ == "__main__":
     pid = os.getgid()
     print(f"pid : {pid}")
+    
+    today = datetime.now().strftime("%Y%m%d")
 
     # 한국
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
@@ -356,10 +358,20 @@ if __name__ == "__main__":
     # 일본
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)   
-    entity_daily.run()
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "google", job_id, log_task_history=True)
+    if today != job_id[:8]:
+        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+    else:
+        entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ja", "youtube", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
-    entity_daily.run()
+    job_id = datetime.now().strftime("%Y%m%d%H")
+    entity_daily = EntitySuggestDaily("ja", "youtube", job_id, log_task_history=True)
+    if today != job_id[:8]:
+        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
+    else:
+        entity_daily.run()
