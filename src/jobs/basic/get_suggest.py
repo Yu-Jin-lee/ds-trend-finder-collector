@@ -79,6 +79,16 @@ class EntitySuggestDaily:
         return all_txt_files
     
     @error_notifier
+    def get_already_collected_keywords(self) -> List[str]:
+        already_collected_keywords = []
+        if os.path.exists(self.local_result_path):
+            print(f"[{datetime.now()}] 이미 수집된 서제스트 결과가 있습니다. (path : {self.local_result_path})")
+            for line in JsonlFileHandler(self.local_result_path).read_generator():
+                already_collected_keywords.append(line['keyword'])
+            print(f"[{datetime.now()}] ㄴ {len(already_collected_keywords)}개 키워드 수집되어 있음")
+        return list(set(already_collected_keywords))
+    
+    @error_notifier
     def get_one_week_ago_trend_keywords(self, today, lang) -> List[str]:
         '''
         이전 7일 트렌드 키워드 목록 가져오기
@@ -165,6 +175,8 @@ class EntitySuggestDaily:
         # 기본 서제스트 수집
         print(f"[{datetime.now()}] 기본 서제스트 수집 시작 (총 수집할 개수 : {len(targets)}, process_num : {basic_num_process})")
         
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=basic_num_process)
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         print(f"[{datetime.now()}] 기본 서제스트 수집 완료")
@@ -260,16 +272,22 @@ class EntitySuggestDaily:
                 lang.suggest_extension_texts_by_rank("2_small") + \
                 lang.suggest_extension_texts_by_rank("3_small")
         print(f"[{datetime.now()}] 1, 2, 3 단계 extension text 추가 후 개수 {len(targets)} | process_num : {num_process}")
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         # 4단계 수집
         ## 2단계에서 valid한 서제스트가 valid_threshold개 이상인 완성형 문자로 시작하는 확장 문자만 수집
         targets = self.filtering_rank_4_targets()
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         # 5단계 수집
         ## 4단계에서 valid한 서제스트가 valid_threshold개 이상인 완성형 문자로 시작하는 확장 문자만 수집
         targets = self.filtering_rank_5_targets()
+        already_collected_keywords = self.get_already_collected_keywords()
+        targets = list(set(targets) - set(already_collected_keywords))
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
