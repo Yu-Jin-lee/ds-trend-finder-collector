@@ -344,23 +344,21 @@ if __name__ == "__main__":
     
     # 한국
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"))
+    entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 한국 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ko", "youtube", datetime.now().strftime("%Y%m%d%H"))
+    entity_daily = EntitySuggestDaily("ko", "youtube", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
 
     # 일본
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 google ----------")
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    entity_daily = EntitySuggestDaily("ja", "google", job_id)
+    entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)   
     entity_daily.run()
     
     print()
     print(f"---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    entity_daily = EntitySuggestDaily("ja", "youtube", job_id)
+    entity_daily = EntitySuggestDaily("ja", "youtube", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
