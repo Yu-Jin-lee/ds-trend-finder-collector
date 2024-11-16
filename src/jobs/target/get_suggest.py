@@ -18,6 +18,7 @@ from utils.task_history import TaskHistory
 from utils.data import remove_duplicates_from_new_keywords
 from validator.suggest_validator import SuggestValidator
 from utils.text import extract_initial_next_target_keyword
+from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 
 def cnt_valid_suggest(suggestions:List[dict], 
                       target_keyword:str=None,
@@ -409,21 +410,30 @@ class EntitySuggestDaily:
         except Exception as e:
             print(f"[{datetime.now()}] failed to update task history: {e}")
 
-    @error_notifier
     def run(self):
-        if self.log_task_history:
-            self.task_history.set_task_start()
-            self.task_history.set_task_in_progress()
+        try:
+            start_time = datetime.now()
+            print(f"job_id : {self.job_id}")
+            if self.log_task_history:
+                self.task_history.set_task_start()
+                self.task_history.set_task_in_progress()
+                
+            if self.service == "google":
+                self.run_google()
+
+            self.count_trend_keyword()
+
+            self.upload_to_hdfs()
             
-        if self.service == "google":
-            self.run_google()
-
-        self.count_trend_keyword()
-
-        self.upload_to_hdfs()
-        
-        if self.log_task_history:
-            self.task_history.set_task_completed()
+            if self.log_task_history:
+                self.task_history.set_task_completed()
+            end_time = datetime.now()
+        except Exception as e:
+            print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
+            ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 실패 작업 종료")
+        else:
+            print(f"[{datetime.now()}] 서제스트 수집 완료")
+            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
 
 if __name__ == "__main__":
     print(f"pid : {os.getpid()}")
