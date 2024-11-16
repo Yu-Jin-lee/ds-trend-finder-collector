@@ -18,11 +18,11 @@ from utils.data import remove_duplicates_from_new_keywords
 
 
 class EntitySuggestDaily:
-    def __init__(self, lang : str, service : str, log_task_history:bool=False):
+    def __init__(self, lang : str, service : str, job_id, log_task_history:bool=False):
         # 기본정보
         self.lang = lang
         self.service = service
-        self.job_id = datetime.now().strftime("%Y%m%d%H")
+        self.job_id = job_id
         self.project_name = "trend_finder"
         self.suggest_type = "target"
         self.task_name = f"수집-서제스트-{service}-{self.suggest_type}"
@@ -377,13 +377,13 @@ if __name__ == "__main__":
     print(f"pid : {os.getpid()}")
 
     try:
-        entity_daily = EntitySuggestDaily("ko", "google")
+        entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"))
         entity_daily.run()
     except Exception as e:
         print(f"[{datetime.now()}] 한국 서제스트 수집시 오류로 종료 (error : {e})")
     
     try:
-        entity_daily = EntitySuggestDaily("ja", "google")
+        entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"))
         entity_daily.run()
     except Exception as e:
         print(f"[{datetime.now()}] 일본 서제스트 수집시 오류로 종료 (error : {e})")
