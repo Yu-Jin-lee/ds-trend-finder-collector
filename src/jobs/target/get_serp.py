@@ -6,6 +6,7 @@ from utils.file import TXTFileHandler, JsonlFileHandler, GZipFileHandler
 from utils.hdfs import HdfsFileHandler
 from collector.serp_collector.serp_collector import SerpCollector
 from utils.task_history import TaskHistory
+from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 from utils.decorator import error_notifier
 from config import postgres_db_config
 
@@ -58,6 +59,9 @@ class EntitySerpDaily:
         self.task_name = f"수집-서프-{service}-{self.suggest_type}"
         self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id)
 
+        # slack 관련
+        self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
+
     @error_notifier
     def append_keywords_to_serp_keywords_txt(self, keywords, log:bool=True):
         '''
@@ -108,71 +112,79 @@ class EntitySerpDaily:
         except Exception as e:
             print(f"[{datetime.now()}] error from upload_to_hdfs : {e}")
 
-    @error_notifier
     def run(self):
-        if self.log_task_history:
-            self.task_history.set_task_start()
-            self.task_history.set_task_in_progress()
+        try:
+            if self.log_task_history:
+                self.task_history.set_task_start()
+                self.task_history.set_task_in_progress()
 
-        # 파일이 존재할 때까지 기다림
-        print(f"[{datetime.now()}] 키워드 파일의 생성을 기다리는 중입니다: {self.new_trend_keyword_file}")
-        while not os.path.exists(self.new_trend_keyword_file):
-            time.sleep(60)  # 60초마다 파일 존재 여부를 확인
-        print(f"[{datetime.now()}] 키워드 파일이 생성되었습니다. 프로세스를 시작합니다.")
+            # 파일이 존재할 때까지 기다림
+            print(f"[{datetime.now()}] 키워드 파일의 생성을 기다리는 중입니다: {self.new_trend_keyword_file}")
+            while not os.path.exists(self.new_trend_keyword_file):
+                time.sleep(60)  # 60초마다 파일 존재 여부를 확인
+            print(f"[{datetime.now()}] 키워드 파일이 생성되었습니다. 프로세스를 시작합니다.")
 
-        last_keyword_count = 0  # 마지막으로 처리한 키워드 수
-        no_new_keywords_count = 0  # 새 키워드가 없었던 횟수
-        
-        # 새 키워드가 없는 것을 몇 번 확인할지 설정
-        if self.service == "youtube":
-            max_no_new_keywords_count = 30
-        else:
-            max_no_new_keywords_count = 50
-        
-        already_collected_keywords = set() # 이미 수집한 키워드
-        if os.path.exists(self.serp_download_local_path): # 서프 수집한 결과 있으면 추가
-            print(f"[{datetime.now()}] 기존 서프 수집 이력이 있습니다. 수집 완료된 키워드 파악중..")
-            for serp in JsonlFileHandler(self.serp_download_local_path).read_generator():
-                already_collected_keywords.add(serp['search_parameters']['q'])
-            print(f"[{datetime.now()}] 기존 서프 수집 완료된 키워드 파악 완료 : {len(already_collected_keywords)}개 키워드")
-        while no_new_keywords_count < max_no_new_keywords_count:
-            # 키워드를 읽음
-            trend_keywords = TXTFileHandler(self.new_trend_keyword_file).read_lines()
+            last_keyword_count = 0  # 마지막으로 처리한 키워드 수
+            no_new_keywords_count = 0  # 새 키워드가 없었던 횟수
             
-            # 새로운 키워드 확인
-            if len(trend_keywords) > last_keyword_count:
-                print(f"[{datetime.now()}] 새로운 키워드 발견! 수집을 시작합니다. (키워드 개수: {len(trend_keywords)})")
-                
-                # 새로운 키워드를 처리
-                keywords_to_collect_serp = list(set(trend_keywords[last_keyword_count:]) - already_collected_keywords)
-                print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 1 ({len(keywords_to_collect_serp)})개")
-                keywords_to_collect_serp = list(set(keywords_to_collect_serp) - set(get_keywords_already_collected_serp(self.lang, self.job_id))) # 오늘 수집한 키워드 제외
-                print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 2 ({len(keywords_to_collect_serp)})개")
-                self.collect_serp(keywords_to_collect_serp) # 이미 수집한 키워드 제외하고 수집
-                self.append_keywords_to_serp_keywords_txt(keywords_to_collect_serp) # 수집한 키워드 hdfs에 저장
-                already_collected_keywords = set(list(already_collected_keywords) + trend_keywords[last_keyword_count:])
-                
-                # 마지막으로 처리한 키워드 수 업데이트
-                last_keyword_count = len(trend_keywords)
-                no_new_keywords_count = 0  # 새 키워드가 있으면 카운트를 초기화
-                
+            # 새 키워드가 없는 것을 몇 번 확인할지 설정
+            if self.service == "youtube":
+                max_no_new_keywords_count = 30
             else:
-                # 새로운 키워드가 없으면 카운트를 증가
-                no_new_keywords_count += 1
-                print(f"[{datetime.now()}] 새로운 키워드가 없습니다. {no_new_keywords_count}/{max_no_new_keywords_count} 번째 대기 중...")
+                max_no_new_keywords_count = 50
+            
+            already_collected_keywords = set() # 이미 수집한 키워드
+            if os.path.exists(self.serp_download_local_path): # 서프 수집한 결과 있으면 추가
+                print(f"[{datetime.now()}] 기존 서프 수집 이력이 있습니다. 수집 완료된 키워드 파악중..")
+                for serp in JsonlFileHandler(self.serp_download_local_path).read_generator():
+                    already_collected_keywords.add(serp['search_parameters']['q'])
+                print(f"[{datetime.now()}] 기존 서프 수집 완료된 키워드 파악 완료 : {len(already_collected_keywords)}개 키워드")
+            while no_new_keywords_count < max_no_new_keywords_count:
+                # 키워드를 읽음
+                trend_keywords = TXTFileHandler(self.new_trend_keyword_file).read_lines()
                 
-            # 주기적으로 대기 (파일이 다시 채워질 수 있도록 대기)
-            time.sleep(60*1)  # 1분마다 파일을 확인
+                # 새로운 키워드 확인
+                if len(trend_keywords) > last_keyword_count:
+                    print(f"[{datetime.now()}] 새로운 키워드 발견! 수집을 시작합니다. (키워드 개수: {len(trend_keywords)})")
+                    
+                    # 새로운 키워드를 처리
+                    keywords_to_collect_serp = list(set(trend_keywords[last_keyword_count:]) - already_collected_keywords)
+                    print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 1 ({len(keywords_to_collect_serp)})개")
+                    keywords_to_collect_serp = list(set(keywords_to_collect_serp) - set(get_keywords_already_collected_serp(self.lang, self.job_id))) # 오늘 수집한 키워드 제외
+                    print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 2 ({len(keywords_to_collect_serp)})개")
+                    self.collect_serp(keywords_to_collect_serp) # 이미 수집한 키워드 제외하고 수집
+                    self.append_keywords_to_serp_keywords_txt(keywords_to_collect_serp) # 수집한 키워드 hdfs에 저장
+                    already_collected_keywords = set(list(already_collected_keywords) + trend_keywords[last_keyword_count:])
+                    
+                    # 마지막으로 처리한 키워드 수 업데이트
+                    last_keyword_count = len(trend_keywords)
+                    no_new_keywords_count = 0  # 새 키워드가 있으면 카운트를 초기화
+                    
+                else:
+                    # 새로운 키워드가 없으면 카운트를 증가
+                    no_new_keywords_count += 1
+                    print(f"[{datetime.now()}] 새로운 키워드가 없습니다. {no_new_keywords_count}/{max_no_new_keywords_count} 번째 대기 중...")
+                    
+                # 주기적으로 대기 (파일이 다시 채워질 수 있도록 대기)
+                time.sleep(60*1)  # 1분마다 파일을 확인
 
-        print(f"[{datetime.now()}] 더 이상 키워드가 추가되지 않아 프로세스를 종료합니다.")
+            print(f"[{datetime.now()}] 더 이상 키워드가 추가되지 않아 프로세스를 종료합니다.")
 
-        # 압축
-        self.serp_download_local_path = GZipFileHandler.gzip(self.serp_download_local_path)
+            # 압축
+            self.serp_download_local_path = GZipFileHandler.gzip(self.serp_download_local_path)
 
-        self.upload_to_hdfs()
+            self.upload_to_hdfs()
+            
+            if self.log_task_history:
+                self.task_history.set_task_completed()
+        except Exception as e:
+            print(f"[{datetime.now()}] 서프 수집 실패 작업 종료\nError Msg : {e}")
+            ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서프 수집 실패 작업 종료")
+
+        else:
+            print(f"[{datetime.now()}] 서프 수집 완료")
+            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
         
-        if self.log_task_history:
-            self.task_history.set_task_completed()
 
 
 if __name__ == "__main__":
