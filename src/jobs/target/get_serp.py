@@ -57,7 +57,7 @@ class EntitySerpDaily:
         # log history 관련
         self.log_task_history = log_task_history
         self.task_name = f"수집-서프-{service}-{self.suggest_type}"
-        self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id)
+        self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id, self.lang)
 
         # slack 관련
         self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     suggest_type = "target"
     job_id = datetime.now().strftime("%Y%m%d%H")
     # 한국
-    entity_serp_daily = EntitySerpDaily(job_id, "ko", "google")
+    entity_serp_daily = EntitySerpDaily(job_id, "ko", "google", log_task_history=True)
     entity_serp_daily.run()
 
     # 일본
@@ -207,5 +207,5 @@ if __name__ == "__main__":
     last_file = file_list[-1]
     if today == last_file[:8]:
         job_id = last_file[:10]
-        entity_serp_daily = EntitySerpDaily(job_id, lang, service)
+        entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
         entity_serp_daily.run()
