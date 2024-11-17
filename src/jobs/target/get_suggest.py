@@ -83,7 +83,7 @@ class EntitySuggestDaily:
         
         # Task History 관련
         self.log_task_history = log_task_history
-        self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id)
+        self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id, self.lang)
         
         # slack 관련
         self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
