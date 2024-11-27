@@ -271,7 +271,8 @@ class EntitySuggestDaily:
         대상 키워드 있는 경우 해당 키워드의 0, 1단계 서제스트 수집
         '''
         try:
-            target_num_process = 75
+            target_num_process = 95
+            print(f"[{datetime.now()}] 수집 프로세스 개수 : {target_num_process}")
             lang = self.get_lang(self.lang)
             extension_texts = lang.suggest_extension_texts_by_rank(0) + lang.suggest_extension_texts_by_rank(1) # 확장 텍스트 1글자임
             if self.lang == "ja": # 일본의 경우 띄어쓰기 하지 않음
@@ -301,7 +302,8 @@ class EntitySuggestDaily:
         '''
         try:
             valid_threshold = 8
-            target_num_process = 75
+            target_num_process = 95            
+            print(f"[{datetime.now()}] 수집 프로세스 개수 : {target_num_process}")
             check_dict = combine_dictionary([self.make_check_dict("ko"), self.make_check_dict("ja"), self.make_check_dict("en")])
             targets = []
             cnt = 0
