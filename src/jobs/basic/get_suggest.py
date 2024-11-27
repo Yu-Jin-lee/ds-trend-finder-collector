@@ -345,33 +345,30 @@ if __name__ == "__main__":
     
     today = datetime.now().strftime("%Y%m%d")
 
-    # 한국
+    # 한국 - google
     print(f"---------- [{datetime.now()}] 한국 수집 시작 google ----------")
-    entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
-    entity_daily.run()
-    
-    print()
-    print(f"---------- [{datetime.now()}] 한국 수집 시작 youtube ----------")
-    entity_daily = EntitySuggestDaily("ko", "youtube", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    lang = "ko"
+    service = "google"
+    entity_daily = EntitySuggestDaily(lang, service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
     entity_daily.run()
 
-    # 일본
-    print()
-    print(f"---------- [{datetime.now()}] 일본 수집 시작 google ----------")
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    entity_daily = EntitySuggestDaily("ja", "google", job_id, log_task_history=True)
-    if today != job_id[:8]:
-        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
-        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
-    else:
-        entity_daily.run()
+    # 일본 - google
+    print(f"\n---------- [{datetime.now()}] 일본 수집 시작 google ----------")
+    lang = "ja"
+    service = "google"
+    entity_daily = EntitySuggestDaily(lang, service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily.run()
     
-    print()
-    print(f"---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    entity_daily = EntitySuggestDaily("ja", "youtube", job_id, log_task_history=True)
-    if today != job_id[:8]:
-        print(f"수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
-        ds_trend_finder_dbgout_error(f"{entity_daily.slack_prefix_msg}\nMessage : 수집 시작 시간이 {today}을 넘어갔습니다. 수집을 진행하지 않습니다.")
-    else:
-        entity_daily.run()
+    # 한국 - youtube
+    print(f"\n---------- [{datetime.now()}] 한국 수집 시작 youtube ----------")
+    lang = "ko"
+    service = "youtube"
+    entity_daily = EntitySuggestDaily(lang, service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily.run()
+
+    # 일본 - youtube
+    print(f"\n---------- [{datetime.now()}] 일본 수집 시작 youtube ----------")
+    lang = "ja"
+    service = "youtube"
+    entity_daily = EntitySuggestDaily(lang, service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily.run()

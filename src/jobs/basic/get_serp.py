@@ -195,31 +195,30 @@ if __name__ == "__main__":
     suggest_type = "basic"
     today = datetime.now().strftime("%Y%m%d")
 
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    # 한국
+    # 한국 - google
     lang = "ko"
-
     service = "google"
+    job_id = datetime.now().strftime("%Y%m%d%H")
     entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
     entity_serp_daily.run()
 
-    service = "youtube"
-    job_id = find_last_job_id(suggest_type, lang, service, today)
-    if int(job_id[-2:]) < 18: # 18시 이전 작업은 로그를 남기지 않음
-        entity_serp_daily = EntitySerpDaily(job_id, "ko", service, log_task_history=True)
-    else: # 18시 이후 작업은 로그 남김
-        entity_serp_daily = EntitySerpDaily(job_id, "ko", service, log_task_history=True)
-    entity_serp_daily.run()
-
-    # 일본
+    # 일본 - google
     lang = "ja"
-    
     service = "google"
     job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, "ja", service, log_task_history=True)
+    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
     entity_serp_daily.run()
 
+    # 한국 - youtube
+    lang = "ko"
     service = "youtube"
     job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, "ja", service, log_task_history=True)
+    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
+    entity_serp_daily.run()
+
+    # 일본 - youtube
+    lang = "ja"
+    service = "youtube"
+    job_id = find_last_job_id(suggest_type, lang, service, today)
+    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
     entity_serp_daily.run()
