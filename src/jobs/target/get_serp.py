@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 from typing import List
 from datetime import datetime
 from utils.file import TXTFileHandler, JsonlFileHandler, GZipFileHandler
@@ -186,26 +187,32 @@ class EntitySerpDaily:
             print(f"[{datetime.now()}] 서프 수집 완료")
             ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
         
-
-
-if __name__ == "__main__":
-    print(f"pid : {os.getpid()}")
-    today = datetime.now().strftime("%Y%m%d")
-    
-    suggest_type = "target"
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    # 한국
-    entity_serp_daily = EntitySerpDaily(job_id, "ko", "google", log_task_history=True)
-    entity_serp_daily.run()
-
-    # 일본
-    service = "google"
-    lang = "ja"
+def find_last_job_id(suggest_type, lang, service, today):
     data_path = f"./data/result/{suggest_type}/{service}/{lang}"
     file_list = os.listdir(data_path)
     file_list.sort()
     last_file = file_list[-1]
     if today == last_file[:8]:
         job_id = last_file[:10]
-        entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
-        entity_serp_daily.run()
+        return job_id
+    else:
+        print(f"[{datetime.now()}] job_id를 찾을 수 없습니다. ({today}의 {lang} {service} 데이터가 아직 존재하지 않습니다.)")
+        return None
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang", help="language", default=None)
+    parser.add_argument("--service", help="service(google or youtube)", default=None)
+    args = parser.parse_args()
+    
+    pid = os.getpid()
+    print(f"pid : {pid}")
+
+    suggest_type = "target"
+    today = datetime.now().strftime("%Y%m%d")
+    job_id = find_last_job_id(suggest_type, args.lang, args.service, today)
+
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
+    entity_serp_daily = EntitySerpDaily(job_id, args.lang, args.service, log_task_history=True)
+    entity_serp_daily.run()
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 완료 ----------")

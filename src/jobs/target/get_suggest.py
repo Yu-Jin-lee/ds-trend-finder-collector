@@ -1,5 +1,6 @@
 import os
 import math
+import argparse
 from datetime import datetime, timedelta
 from typing import List, Tuple
 
@@ -438,16 +439,15 @@ class EntitySuggestDaily:
             ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
 
 if __name__ == "__main__":
-    print(f"pid : {os.getpid()}")
-
-    try:
-        entity_daily = EntitySuggestDaily("ko", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
-        entity_daily.run()
-    except Exception as e:
-        print(f"[{datetime.now()}] 한국 서제스트 수집시 오류로 종료 (error : {e})")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang", help="language", default=None)
+    parser.add_argument("--service", help="service(google or youtube)", default=None)
+    args = parser.parse_args()
     
-    try:
-        entity_daily = EntitySuggestDaily("ja", "google", datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
-        entity_daily.run()
-    except Exception as e:
-        print(f"[{datetime.now()}] 일본 서제스트 수집시 오류로 종료 (error : {e})")
+    pid = os.getpid()
+    print(f"pid : {pid}")
+
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
+    entity_daily = EntitySuggestDaily(args.lang, args.service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily.run()
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 완료 ----------")
