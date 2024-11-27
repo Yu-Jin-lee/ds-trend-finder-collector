@@ -31,11 +31,11 @@ class Ja(LanguageBase):
     
     def get_kanji(self, topn:int = None) -> list:
         if topn == None:
-            return TXTFileHandler("/data2/yj.lee/git/suggest/src/lang/ja/kanji.txt").read_lines()
-        return TXTFileHandler(f"/data2/yj.lee/git/suggest/src/lang/ja/kanji_top_{topn}.txt").read_lines()[:topn]
+            return TXTFileHandler("./lang/ja/kanji.txt").read_lines()
+        return TXTFileHandler(f"./lang/ja/kanji_top_{topn}.txt").read_lines()[:topn]
     
     def get_kanji_trend(self) -> list:
-        return TXTFileHandler("/data2/yj.lee/git/suggest/src/lang/ja/kanji_trend.txt").read_lines()
+        return TXTFileHandler("./lang/ja/kanji_trend.txt").read_lines()
     
     def get_letters(self) -> list:
         return ['あ', 'い', 'う', 'え', 'お',
