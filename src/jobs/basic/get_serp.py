@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 from typing import List
 from datetime import datetime
 
@@ -190,35 +191,19 @@ def find_last_job_id(suggest_type, lang, service, today):
         return None
     
 if __name__ == "__main__":
-    print(f"pid : {os.getpid()}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lang", help="language", default=None)
+    parser.add_argument("--service", help="service(google or youtube)", default=None)
+    args = parser.parse_args()
+    
+    pid = os.getgid()
+    print(f"pid : {pid}")
 
     suggest_type = "basic"
     today = datetime.now().strftime("%Y%m%d")
-
-    # 한국 - google
-    lang = "ko"
-    service = "google"
-    job_id = datetime.now().strftime("%Y%m%d%H")
-    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
+    job_id = find_last_job_id(suggest_type, args.lang, args.service, today)
+    
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
+    entity_serp_daily = EntitySerpDaily(job_id, args.lang, args.service, log_task_history=True)
     entity_serp_daily.run()
-
-    # 일본 - google
-    lang = "ja"
-    service = "google"
-    job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
-    entity_serp_daily.run()
-
-    # 한국 - youtube
-    lang = "ko"
-    service = "youtube"
-    job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
-    entity_serp_daily.run()
-
-    # 일본 - youtube
-    lang = "ja"
-    service = "youtube"
-    job_id = find_last_job_id(suggest_type, lang, service, today)
-    entity_serp_daily = EntitySerpDaily(job_id, lang, service, log_task_history=True)
-    entity_serp_daily.run()
+    print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 완료 ----------")
