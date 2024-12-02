@@ -1,6 +1,3 @@
-alphabet_list = [chr(i) for i in range(ord('a'), ord('z')+1)]
-
-
 import string
 from lang.lang_base import LanguageBase
 from utils.text import normalize_spaces
