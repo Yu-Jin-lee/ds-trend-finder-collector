@@ -50,3 +50,7 @@ def extract_initial_next_target_keyword(keywords, target_keyword) -> List[str]:
             first_char = parts[1].strip()[0]
             result.append(get_initial(first_char))
     return result
+
+def normalize_spaces(text):
+    """문자열의 공백을 정규화하여 연속된 공백을 하나로 만듭니다."""
+    return re.sub(r'\s{2,}', ' ', text)

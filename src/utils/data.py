@@ -44,6 +44,20 @@ def remove_duplicates_from_new_keywords(already_keywords:set, new_keywords:set) 
     
     return filtered_keywords
 
+def remove_duplicates_preserve_order(lst):
+    """
+    리스트 순서를 유지하면서 중복을 제거합니다.
+    Removes duplicates from the list while preserving the order.
+
+    Parameters:
+        lst (list): The input list.
+
+    Returns:
+        list: A new list with duplicates removed, preserving the original order.
+    """
+    seen = set()
+    return [x for x in lst if x not in seen and not seen.add(x)]
+
 class TrieNode:
     def __init__(self):
         self.children = {}
