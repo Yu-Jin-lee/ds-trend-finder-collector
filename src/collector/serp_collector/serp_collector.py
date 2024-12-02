@@ -46,6 +46,9 @@ class SerpCollector:
             return Ja().hl, Ja().gl, Ja().serp_location()
         if lang == "en":
             return En().hl, En().gl, En().serp_location()
+        else:
+            print(f"[{datetime.now()}] {lang} 해당 국가의 정보가 존재하지 않습니다. (SerpCollector)")
+            raise ValueError(f"{lang} 해당 국가의 정보가 존재하지 않습니다. (SerpCollector)")
         
     def set_database(self, lang):
         if lang == "ko":
@@ -54,6 +57,9 @@ class SerpCollector:
             return QueryDatabaseJa()
         if lang == "en":
             return QueryDatabaseEn()
+        else:
+            print(f"[{datetime.now()}] {lang} 해당 국가의 DB가 존재하지 않습니다. (SerpCollector)")
+            raise ValueError(f"{lang} 해당 국가의 DB가 존재하지 않습니다. (SerpCollector)")
         
     def send_to_kafka(self, keywords : List[str]):
         '''

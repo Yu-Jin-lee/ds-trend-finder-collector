@@ -13,7 +13,7 @@ from utils.hdfs import HdfsFileHandler
 from utils.task_history import TaskHistory
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 from utils.decorator import error_notifier
-from lang import Ko, Ja
+from lang import Ko, Ja, En
 from config import postgres_db_config
 
 class EntitySuggestDaily:
@@ -44,7 +44,7 @@ class EntitySuggestDaily:
         self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id, self.lang)
 
         # slack 관련
-        self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
+        self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
 
     @error_notifier
     def get_lang(self, lang:str):
@@ -52,6 +52,11 @@ class EntitySuggestDaily:
             return Ko()
         if lang == "ja":
             return Ja()
+        if lang == "en":
+            return En()
+        else:
+            print(f"[{datetime.now()}] {lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily)")
+            raise ValueError(f"{lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily)")
     
     @error_notifier
     def load_keywords_from_hdfs(self, file_path):
@@ -65,6 +70,9 @@ class EntitySuggestDaily:
         '''
         입력한 date_folder_path 하위 경로를 돌면서 .txt 파일 목록을 가져오는 함수
         '''
+        if not self.hdfs.exist(date_folder_path):
+            print(f"[{datetime.now()}] message from get_all_txt_files : {date_folder_path} 경로가 존재하지 않습니다.")
+            return []
         # 현재 폴더의 하위 디렉토리 목록을 가져옴
         job_id_dirs = [d for d in self.hdfs.list(date_folder_path) if not has_file_extension(d)] # 디렉토리만 가져옴
         all_txt_files = []
@@ -122,9 +130,14 @@ class EntitySuggestDaily:
             complete_letters = ['가', '개', '거', '게', '겨', '계', '고', '과', '괴', '교', '구', '궈', '궤', '귀', '규', '그', '기', '까', '깨', '꺼', '께', '껴', '꼬', '꽤', '꾀', '꾸', '꿔', '꿰', '뀌', '끄', '끼', '나', '내', '냐', '너', '네', '녀', '노', '놔', '뇌', '뇨', '누', '눠', '뉘', '뉴', '느', '늬', '니', '다', '대', '더', '데', '뎌', '도', '돼', '되', '두', '둬', '뒤', '듀', '드', '디', '따', '때', '떠', '떼', '또', '뚜', '뛰', '뜨', '띄', '띠', '라', '래', '랴', '러', '레', '려', '례', '로', '뢰', '료', '루', '뤄', '뤼', '류', '르', '리', '마', '매', '머', '메', '며', '모', '묘', '무', '뭐', '뮤', '므', '미', '바', '배', '버', '베', '벼', '보', '봐', '부', '뷔', '뷰', '브', '비', '빠', '빼', '뻐', '뼈', '뽀', '뾰', '뿌', '쁘', '삐', '사', '새', '샤', '섀', '서', '세', '셔', '셰', '소', '쇄', '쇠', '쇼', '수', '쉐', '쉬', '슈', '스', '시', '싸', '써', '쎄', '쏘', '쐐', '쑤', '쓰', '씌', '씨', '아', '애', '야', '얘', '어', '에', '여', '예', '오', '와', '왜', '외', '요', '우', '워', '웨', '위', '유', '으', '의', '이', '자', '재', '저', '제', '져', '조', '좌', '죄', '죠', '주', '줘', '쥐', '쥬', '즈', '지', '짜', '째', '쩌', '쪼', '쯔', '찌', '차', '채', '처', '체', '쳐', '초', '최', '추', '춰', '췌', '취', '츄', '츠', '치', '카', '캐', '커', '케', '켜', '코', '콰', '쾌', '쿄', '쿠', '쿼', '퀘', '퀴', '큐', '크', '키', '타', '태', '터', '테', '텨', '토', '퇴', '투', '퉈', '튀', '튜', '트', '티', '파', '패', '퍼', '페', '펴', '폐', '포', '표', '푸', '퓨', '프', '피', '하', '해', '허', '헤', '혀', '혜', '호', '화', '회', '효', '후', '훼', '휘', '휴', '흐', '희', '히']
             suggest_extension_texts_rank_4 = [x + y for x in complete_letters for y in complete_letters]
             return lang.suggest_extension_texts_by_rank(1) + lang.suggest_extension_texts_by_rank(2) + lang.suggest_extension_texts_by_rank(3) + suggest_extension_texts_rank_4
-        else: # 일본
+        if self.lang == "ja": # 일본
             return lang.suggest_extension_texts_by_rank("1_kanji_300") + lang.suggest_extension_texts_by_rank("2_kanji_300") + lang.suggest_extension_texts_by_rank("3_kanji_300")
-
+        if self.lang == "en":
+            return lang.suggest_extension_texts_by_rank(1) + lang.suggest_extension_texts_by_rank(2) + lang.suggest_extension_texts_by_rank(3) + lang.suggest_extension_texts_by_rank(4)
+        else:
+            print(f"[{datetime.now()}] {self.lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily-get_basic_extension)")
+            raise ValueError(f"{self.lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily-get_basic_extension)")
+        
     @error_notifier  
     def get_suggest_and_request_serp(self,
                                      targets : List[str],

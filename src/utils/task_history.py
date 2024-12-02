@@ -29,10 +29,15 @@ class TaskHistory:
         self.table_name = "task_history"
 
     def set_schema(self, lang:str):
+        if lang == "ko":
+            return 'public'
         if lang == "ja":
             return 'query_jp_ja'
+        if lang == "en":
+            return 'query_us_en'
         else:
-            return 'public'
+            print(f"[{datetime.now()}] {lang} 해당 국가의 스키마가 존재하지 않습니다. (TaskHistory)")
+            raise ValueError(f"{lang} 해당 국가의 스키마가 존재하지 않습니다. (TaskHistory)")
         
     def connect_to_db(self):
         con = psycopg2.connect(

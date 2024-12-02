@@ -61,7 +61,7 @@ class EntitySerpDaily:
         self.task_history_updater = TaskHistory(postgres_db_config, self.project_name, self.task_name, self.job_id, self.lang)
         
         # slack 관련
-        self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
+        self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
 
     @error_notifier
     def append_keywords_to_serp_keywords_txt(self, keywords, log:bool=True):

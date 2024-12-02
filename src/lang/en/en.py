@@ -58,7 +58,14 @@ class En(LanguageBase):
                     for y in targets \
                     for z in targets
                     ]
-            
+        elif rank == 4:
+            targets = self.get_alphabets() + self.get_numbers()
+            return [x + y + z + a \
+                    for x in targets \
+                    for y in targets \
+                    for z in targets \
+                    for a in targets
+                    ]
             
     def suggest_extension_texts(self, 
                                 stratgy : str = "all",
