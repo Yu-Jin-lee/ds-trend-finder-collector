@@ -124,7 +124,7 @@ class TXTFileHandler:
     def __init__(self, path):
         self.path = path
 
-    def write(self, data, log:bool=True):
+    def write(self, data, log:bool=False):
         try:
             with open(self.path, 'a') as file:
                 if type(data) == list:
