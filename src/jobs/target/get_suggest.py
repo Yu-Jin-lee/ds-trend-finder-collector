@@ -12,7 +12,7 @@ from utils.text import extract_initial
 from utils.data import combine_dictionary
 from utils.hdfs import HdfsFileHandler
 from utils.postgres import PostGres
-from lang import Ko, Ja, En, filter_en_valid_trend_keyword
+from lang import Ko, Ja, En, filter_en_valid_trend_keyword, filter_en_valid_token_count
 from config import postgres_db_config
 from utils.decorator import error_notifier
 from utils.task_history import TaskHistory
@@ -367,7 +367,7 @@ class EntitySuggestDaily:
         입력된 트렌드 키워드가 유효한 키워드인지 확인
         '''
         if self.lang == "en":
-            if filter_en_valid_trend_keyword(trend_keyword): return True
+            if filter_en_valid_trend_keyword(trend_keyword) & filter_en_valid_token_count(trend_keyword): return True
             else: return False
         else:
             return True

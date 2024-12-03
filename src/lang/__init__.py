@@ -12,7 +12,7 @@ from lang.ja.ja import Ja
 from lang.en.en import En
 from lang.lang_base import LanguageBase
 
-from lang.en.filtering import filter_en_valid_trend_keyword
+from lang.en.filtering import filter_en_valid_trend_keyword, filter_en_valid_token_count
 
 from utils.db import QueryDatabaseJa, QueryDatabaseKo, QueryDatabaseEn
 
