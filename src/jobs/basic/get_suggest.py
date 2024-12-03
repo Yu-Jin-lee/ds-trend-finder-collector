@@ -13,6 +13,7 @@ from utils.hdfs import HdfsFileHandler
 from utils.task_history import TaskHistory
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 from utils.decorator import error_notifier
+from utils.converter import adjust_job_id
 from lang import Ko, Ja, En, filter_en_valid_trend_keyword, filter_en_valid_token_count
 from config import postgres_db_config
 
@@ -377,7 +378,15 @@ if __name__ == "__main__":
     pid = os.getgid()
     print(f"pid : {pid}")
 
+    # job_id 생성
+    if args.lang == "en": # 미국일 경우 현재 시간에서 14시간 이전으로 job_id 조정
+        job_id = adjust_job_id(datetime.now().strftime("%Y%m%d%H"), 14)
+    else:
+        job_id = datetime.now().strftime("%Y%m%d%H")
+    print(f"job_id : {job_id}")
+
+    # 수집 시작
     print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
-    entity_daily = EntitySuggestDaily(args.lang, args.service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily = EntitySuggestDaily(args.lang, args.service, job_id, log_task_history=True)
     entity_daily.run()
     print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 완료 ----------")

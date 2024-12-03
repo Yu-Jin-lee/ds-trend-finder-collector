@@ -19,6 +19,7 @@ from utils.task_history import TaskHistory
 from utils.data import remove_duplicates_from_new_keywords
 from validator.suggest_validator import SuggestValidator
 from utils.text import extract_initial_next_target_keyword
+from utils.converter import adjust_job_id
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 
 def cnt_valid_suggest(suggestions:List[dict], 
@@ -483,7 +484,15 @@ if __name__ == "__main__":
     pid = os.getpid()
     print(f"pid : {pid}")
 
+    # job_id 생성
+    if args.lang == "en": # 미국일 경우 현재 시간에서 14시간 이전으로 job_id 조정
+        job_id = adjust_job_id(datetime.now().strftime("%Y%m%d%H"), 14)
+    else:
+        job_id = datetime.now().strftime("%Y%m%d%H")
+    print(f"job_id : {job_id}")
+
+    # 수집 시작
     print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
-    entity_daily = EntitySuggestDaily(args.lang, args.service, datetime.now().strftime("%Y%m%d%H"), log_task_history=True)
+    entity_daily = EntitySuggestDaily(args.lang, args.service, job_id, log_task_history=True)
     entity_daily.run()
     print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 완료 ----------")
