@@ -12,7 +12,7 @@ from utils.text import extract_initial
 from utils.data import combine_dictionary
 from utils.hdfs import HdfsFileHandler
 from utils.postgres import PostGres
-from lang import Ko, Ja, En
+from lang import Ko, Ja, En, filter_en_valid_trend_keyword
 from config import postgres_db_config
 from utils.decorator import error_notifier
 from utils.task_history import TaskHistory
@@ -81,6 +81,7 @@ class EntitySuggestDaily:
             os.makedirs(self.local_folder_path)
         self.trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords.txt"
         self.new_trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_new.txt" # 새로 나온 트렌드 키워드 저장
+        self.except_for_valid_trend_keywords_file = f"{self.local_folder_path}/{self.job_id}_except_for_valid_trend_keywords.txt" # 유효하지 않은 트렌드 키워드 저장
         self.local_result_path = f"{self.local_folder_path}/{self.job_id}.jsonl"
         self.trend_keyword_by_entity_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_entity.json"
         
@@ -191,12 +192,15 @@ class EntitySuggestDaily:
             JsonlFileHandler(result_file_path).write(result)
             # 트렌드 키워드 추출
             try:
-                trend_keywords = [suggestion['text'] for res in result for suggestion in res['suggestions'] if is_trend_keyword(suggestion['text'], 
+                trend_keywords = [suggestion['text'] for res in result for suggestion in res['suggestions'] if is_trend_keyword(suggestion['text'], # 트렌드 키워드 추출
                                                                                                                         suggestion['suggest_type'], 
                                                                                                                         suggestion['suggest_subtypes'])]
-                TXTFileHandler(self.trend_keyword_file).write(trend_keywords)
+                valid_trend_keywords = [keyword for keyword in trend_keywords if self.filter_valid_trend_keywords(keyword)] # 트렌드 키워드 중 유효한 키워드만 추출
+                print(f"[{datetime.now()}]       ㄴ✔️유효한 트렌드 키워드 개수 : {len(valid_trend_keywords)}/{len(trend_keywords)}")
+                TXTFileHandler(self.trend_keyword_file).write(valid_trend_keywords) # valid_trend_keywords 저장
+                TXTFileHandler(self.except_for_valid_trend_keywords_file).write(list(set(trend_keywords) - set(valid_trend_keywords))) # valid_trend_keywords를 제외한 나머지 저장
                 # 새로 나온 트렌드 키워드 추출
-                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.one_week_ago_trend_keywords), set(trend_keywords)))
+                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.one_week_ago_trend_keywords), set(valid_trend_keywords)))
                 TXTFileHandler(self.new_trend_keyword_file).write(new_trend_keywords)
             except Exception as e:
                 print(f"[{datetime.now()}] 트렌드 키워드 추출 및 저장 실패 : {e}")
@@ -357,6 +361,17 @@ class EntitySuggestDaily:
         else:
             print(f"[{datetime.now()}] 대상 키워드의 완성형 서제스트 수집 완료")
 
+    @error_notifier
+    def filter_valid_trend_keywords(self, trend_keyword:str) -> bool:
+        '''
+        입력된 트렌드 키워드가 유효한 키워드인지 확인
+        '''
+        if self.lang == "en":
+            if filter_en_valid_trend_keyword(trend_keyword): return True
+            else: return False
+        else:
+            return True
+    
     @error_notifier
     def run_google(self):
         '''

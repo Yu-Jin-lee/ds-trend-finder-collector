@@ -12,6 +12,8 @@ from lang.ja.ja import Ja
 from lang.en.en import En
 from lang.lang_base import LanguageBase
 
+from lang.en.filtering import filter_en_valid_trend_keyword
+
 from utils.db import QueryDatabaseJa, QueryDatabaseKo, QueryDatabaseEn
 
 
