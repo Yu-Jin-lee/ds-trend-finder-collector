@@ -24,10 +24,11 @@ from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 def cnt_valid_suggest(suggestions:List[dict], 
                       target_keyword:str=None,
                       extension:str=None, # 알파벳 확장 문자 (있을 경우 입력, 없을 경우:None)
-                      log:bool=False) -> int:
+                      log:bool=False,
+                      return_result:bool=False) -> int:
     try:
-        # alphabets = list(string.ascii_lowercase)
         cnt_valid = 0
+        valid_suggest = []
         for suggestion in suggestions:
             if SuggestValidator.is_valid_suggest(suggestion['suggest_type'], suggestion['suggest_subtypes']):
                 if (target_keyword != None and
@@ -38,6 +39,7 @@ def cnt_valid_suggest(suggestions:List[dict],
                             if log:
                                 print(f"✔️ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
                             cnt_valid += 1
+                            valid_suggest.append(suggestion['text'])
                         else:
                             if log:
                                 print(f"❌❗ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
@@ -48,14 +50,19 @@ def cnt_valid_suggest(suggestions:List[dict],
                     if log:
                         print(f"✔️ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
                     cnt_valid += 1
+                    valid_suggest.append(suggestion['text'])
             else:
                 if log:
                     print(f"❌ {suggestion['text']} {suggestion['suggest_type']} {suggestion['suggest_subtypes']}")
+        if return_result:
+            return cnt_valid, valid_suggest
         return cnt_valid
     except Exception as e:
         if log:
             print(f"[{datetime.now()}] Error from cnt_valid_suggest: (target_keyword:{target_keyword}, extension:{extension}) | error msg : {e}")
-        return 0
+        if return_result:
+            return cnt_valid, valid_suggest
+        return cnt_valid
 
 class EntitySuggestDaily:
     def __init__(self, lang : str, service : str, job_id, log_task_history:bool=False):
