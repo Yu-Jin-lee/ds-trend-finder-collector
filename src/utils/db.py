@@ -1197,6 +1197,18 @@ class QueryDatabaseEn:
         if len(result)>0:
             return list(result['keyword'])
         return []
+    
+    @staticmethod
+    def get_llm_entity_topic() -> pd.DataFrame:
+        engine, metadata = QueryDatabaseEn.get_connection()
+        query = f"SELECT keyword FROM {QueryDatabaseEn.schema}.llm_entity_topic;"
+
+        with engine.connect() as connection:
+            llm_entity_topic = pd.read_sql(query, con=connection)
+        llm_entity_topic = list(llm_entity_topic['keyword'])
+        llm_entity_topic = [kw.replace("_", " ") for kw in llm_entity_topic]
+        engine.dispose()
+        return llm_entity_topic
         
 def convert_dict_to_json_insert_format(dictionary_value : dict):
     '''

@@ -7,12 +7,12 @@ from typing import List, Tuple
 from collector.suggest_collector.suggest_collect import Suggest
 from validator.trend_keyword_validator import is_trend_keyword
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, JsonFileHandler, has_file_extension
-from utils.db import QueryDatabaseKo, QueryDatabaseJa
+from utils.db import QueryDatabaseKo, QueryDatabaseJa, QueryDatabaseEn
 from utils.text import extract_initial
 from utils.data import combine_dictionary
 from utils.hdfs import HdfsFileHandler
 from utils.postgres import PostGres
-from lang import Ko, Ja
+from lang import Ko, Ja, En
 from config import postgres_db_config
 from utils.decorator import error_notifier
 from utils.task_history import TaskHistory
@@ -95,6 +95,8 @@ class EntitySuggestDaily:
             return Ko()
         if lang == "ja":
             return Ja()
+        if lang == "en":
+            return En()
 
     @error_notifier
     def get_llm_entity_topic(self) -> List[str]:
@@ -103,9 +105,11 @@ class EntitySuggestDaily:
         '''
         if self.lang == "ko":
             return QueryDatabaseKo.get_llm_entity_topic()
-        elif self.lang == "ja":
+        if self.lang == "ja":
             return QueryDatabaseJa.get_llm_entity_topic()
-
+        if self.lang == "en":
+            return QueryDatabaseEn.get_llm_entity_topic()
+        
     @error_notifier
     def get_already_collected_keywords(self) -> List[str]:
         already_collected_keywords = []
@@ -147,9 +151,10 @@ class EntitySuggestDaily:
             return check_dict
         
         elif lang == "en":
-            alphabets = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+            alphabets = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']#, ' ']
             check_dict = {alphabet:[] for alphabet in alphabets}
             for x in alphabets:
+                if x == " ": continue
                 for y in alphabets:
                     check_dict[x].append(x+y)
             return check_dict
@@ -204,17 +209,24 @@ class EntitySuggestDaily:
             return []
         
     @error_notifier
-    def get_all_txt_files(self, date_folder_path):
+    def get_all_txt_files(self, date_folder_path) -> List[str]:
         '''
         입력한 date_folder_path 하위 경로를 돌면서 .txt 파일 목록을 가져오는 함수
         '''
+        all_txt_files = []
+
+        if not self.hdfs.exist(date_folder_path):
+            print(f"[{datetime.now()}] {date_folder_path} 경로가 존재하지 않습니다.")
+            return all_txt_files
+        
         # 현재 폴더의 하위 디렉토리 목록을 가져옴
         job_id_dirs = [d for d in self.hdfs.list(date_folder_path) if not has_file_extension(d)] # 디렉토리만 가져옴
-        all_txt_files = []
 
         # 하위 디렉토리 목록을 순회
         for job_id in job_id_dirs:
             job_id_path = f"{date_folder_path}/{job_id}"
+            if not self.hdfs.exist(job_id_path):
+                continue
             files = self.hdfs.list(job_id_path)
             for file in files:
                 if file.endswith("_trend_keywords.txt"):
