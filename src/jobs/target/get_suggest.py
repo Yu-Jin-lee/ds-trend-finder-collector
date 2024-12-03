@@ -95,7 +95,7 @@ class EntitySuggestDaily:
         self.task_history = TaskHistory(postgres_db_config, "trend_finder", self.task_name, self.job_id, self.lang)
         
         # slack 관련
-        self.slack_prefix_msg = f"Job Id : {self.job_id}\nTask Name : {self.task_name}-{self.lang}"
+        self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
 
     @error_notifier
     def get_lang(self, lang:str):
