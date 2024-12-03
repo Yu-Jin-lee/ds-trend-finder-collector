@@ -40,12 +40,6 @@ def filter_en_valid_trend_keyword(keyword: str) -> bool:
         return True
     return False
 
-print(filter_en_valid_trend_keyword("hello 123!"))  # True
-print(filter_en_valid_trend_keyword("hello world"))  # True
-print(filter_en_valid_trend_keyword("12345"))        # True
-print(filter_en_valid_trend_keyword("!@#"))          # False
-print(filter_en_valid_trend_keyword("hello@world"))  # True
-
 def filter_en_valid_token_count(text: str, valid_cnt: int = 20) -> bool:
     """
     입력 문자열의 토큰(띄어쓰기 기준) 개수가 valid_cnt개 이하인지 확인하는 함수.
