@@ -192,12 +192,8 @@ def find_last_job_id(suggest_type, lang, service, today):
     file_list = os.listdir(data_path)
     file_list.sort()
     last_file = file_list[-1]
-    if today == last_file[:8]:
-        job_id = last_file[:10]
-        return job_id
-    else:
-        print(f"[{datetime.now()}] job_id를 찾을 수 없습니다. ({today}의 {lang} {service} 데이터가 아직 존재하지 않습니다.)")
-        return None
+    job_id = last_file[:10]
+    return job_id
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -211,7 +207,8 @@ if __name__ == "__main__":
     suggest_type = "target"
     today = datetime.now().strftime("%Y%m%d")
     job_id = find_last_job_id(suggest_type, args.lang, args.service, today)
-
+    print(f"job_id : {job_id}")
+    
     print(f"---------- [{datetime.now()}] {args.lang} {args.service} 수집 시작 ----------")
     entity_serp_daily = EntitySerpDaily(job_id, args.lang, args.service, log_task_history=True)
     entity_serp_daily.run()
