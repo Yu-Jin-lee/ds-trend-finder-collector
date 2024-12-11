@@ -344,11 +344,13 @@ class EntitySuggestDaily:
                                             log=False) >= valid_threshold: # valid한 서제스트가 valid_threshold개 이상이면
                         # print(f"=>😀'{extension_letter}'의 valid한 서제스트 개수가 {valid_threshold}개 이상입니다.\n")
                         # 해당 초성으로 시작하는 완성형 문자의 서제스트만 수집
-                        extension_texts = check_dict[extension_letter]
+                        extension_texts = list(set(check_dict[extension_letter]))
+                        extension_texts = [t for t in extension_texts if t != ""]
                         if self.lang == "ja":
                             targets += [target_keyword + t for t in extension_texts]
                         else:
                             targets += [target_keyword + " " + t for t in extension_texts]
+            targets = list(set(targets))
             print(f"[{datetime.now()}] {self.local_result_path}에서 {cnt}줄 읽음 (self.target_letter_suggest_length : {self.target_letter_suggest_length})")
             print(f"[{datetime.now()}] 대상 키워드 extension text 추가 후 개수 {len(targets)}")
             already_collected_texts = self.read_already_collected_text()
