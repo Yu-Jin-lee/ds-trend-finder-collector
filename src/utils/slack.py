@@ -41,3 +41,16 @@ def ds_trend_finder_dbgout_error(message):
         post_message(TrendFinderCollectErrorConfig.token, TrendFinderCollectErrorConfig.channel, strbuf)
     except Exception as e:
         print(f"error from {current_function_name()} : {e}")
+
+def flag_emoji(lang:str):
+    flag_emoji_dict = {
+            "ko": ":flag-kr:",
+            "ja": ":flag-jp:",
+            "en": ":flag-us:",
+        }
+    
+    if lang not in flag_emoji_dict:
+        print(f"[{lang}]의 flag emoji가 존재하지 않습니다.")
+        return None
+    
+    return flag_emoji_dict[lang]
