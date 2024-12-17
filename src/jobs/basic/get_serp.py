@@ -171,12 +171,14 @@ class EntitySerpDaily:
                 self.task_history_updater.set_task_completed()
         except Exception as e:
             print(f"[{datetime.now()}] 서프 수집 실패 작업 종료\nError Msg : {e}")
-            ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMessage : 서프 수집 실패 작업 종료")
+            ds_trend_finder_dbgout_error(self.lang,
+                                         f"{self.slack_prefix_msg}\nMessage : 서프 수집 실패 작업 종료")
             if self.log_task_history:
                 self.task_history_updater.set_task_error(error_msg=e)
         else:
             print(f"[{datetime.now()}] 서프 수집 완료")
-            ds_trend_finder_dbgout(f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
+            ds_trend_finder_dbgout(self.lang,
+                                   f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
         
 def find_last_job_id(suggest_type, lang, service, today):
     data_path = f"./data/result/{suggest_type}/{service}/{lang}"

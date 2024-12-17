@@ -16,6 +16,7 @@ def error_notifier(func):
             method_name = func.__name__
             print(f"[{datetime.now()}] error from method: {method_name}\nError message: {e}")
             # Slack에 에러 메시지 전송
-            ds_trend_finder_dbgout_error(f"{self.slack_prefix_msg}\nMethod: {method_name}\nError: {e}")
+            ds_trend_finder_dbgout_error(self.lang,
+                                         f"{self.slack_prefix_msg}\nMethod: {method_name}\nError: {e}")
             raise  # 에러를 다시 발생시켜 상위에서 처리할 수 있도록 함
     return wrapper

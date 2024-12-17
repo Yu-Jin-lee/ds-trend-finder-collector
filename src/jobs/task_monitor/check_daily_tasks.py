@@ -153,11 +153,13 @@ class DailyTasksMonitor:
             ):
             error_msg = f"❌{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 실패❌\n[업로드 되지 않은 폴더, 파일 리스트]\n ㄴ수집: {collect_failed_folders+collect_failed_files}\n ㄴ분석: {analysis_failed_folders+analysis_failed_files}"
             print(f"[{datetime.now()}] {error_msg}")
-            ds_trend_finder_dbgout_error(error_msg)
+            ds_trend_finder_dbgout_error(self.lang,
+                                         error_msg)
         else:
             success_msg = f"✅{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 완료✅\n[오늘의 트렌드 키워드]\n ㄴ전체: total({len(set(trend_kws['google'] + trend_kws['youtube']))}) | new({len(set(trend_kws_new['google'] + trend_kws_new['youtube']))})\n ㄴ구글: total({len((trend_kws['google']))}개) | new({len(trend_kws_new['google'])})\n ㄴ유튜브: total({len(trend_kws['youtube'])}개) | new({len(trend_kws_new['youtube'])})"
             print(f"[{datetime.now()}] {success_msg}")
-            ds_trend_finder_dbgout(success_msg)
+            ds_trend_finder_dbgout(self.lang,
+                                   success_msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
