@@ -180,7 +180,7 @@ class EntitySerpDaily:
             ds_trend_finder_dbgout_error(self.lang,
                                          f"{self.slack_prefix_msg}\nMessage : 서프 수집 실패 작업 종료")
             if self.log_task_history:
-                self.task_history.set_task_error(error_msg=e)
+                self.task_history.set_task_error(error_msg=str(e))
         else:
             print(f"[{datetime.now()}] 서프 수집 완료")
             ds_trend_finder_dbgout(self.lang,
