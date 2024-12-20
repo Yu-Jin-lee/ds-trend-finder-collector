@@ -19,7 +19,7 @@ class DailyTasksMonitor:
             "ko" : {
                 "basic" : {
                     "google" : [0, 12],
-                    "youtube" : [5, 17]
+                    "youtube" : [6, 18]
                 },
                 "target" : {
                     "google" : [0],
@@ -29,7 +29,7 @@ class DailyTasksMonitor:
             "ja" : {
                 "basic" : {
                     "google" : [2, 14],
-                    "youtube" : [7, 19]
+                    "youtube" : [8, 20]
                 },
                 "target" : {
                     "google" : [0],
