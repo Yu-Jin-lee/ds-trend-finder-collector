@@ -11,7 +11,7 @@ from utils.db import QueryDatabaseKo, QueryDatabaseJa, QueryDatabaseEn
 from utils.text import extract_initial
 from utils.data import combine_dictionary
 from utils.hdfs import HdfsFileHandler
-from utils.postgres import PostGres
+from utils.postgres import get_post_gres
 from lang import Ko, Ja, En, filter_en_valid_trend_keyword, filter_en_valid_token_count
 from config import postgres_db_config
 from utils.decorator import error_notifier
@@ -86,6 +86,9 @@ class EntitySuggestDaily:
         self.local_result_path = f"{self.local_folder_path}/{self.job_id}.jsonl"
         self.trend_keyword_by_entity_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_entity.json"
         
+        # postgresdb 관련
+        self.postgres = get_post_gres(lang)
+
         # hdfs 관련
         self.hdfs = HdfsFileHandler()
         self.hdfs_upload_folder = f"/user/ds/wordpopcorn/{self.lang}/daily/{self.service}_suggest_for_llm_entity_topic/{self.job_id[:4]}/{self.job_id[:6]}/{self.job_id[:8]}/{self.job_id}"
@@ -112,12 +115,7 @@ class EntitySuggestDaily:
         '''
         get_llm_entity_topic 리스트 가져오기
         '''
-        if self.lang == "ko":
-            return QueryDatabaseKo.get_llm_entity_topic()
-        if self.lang == "ja":
-            return QueryDatabaseJa.get_llm_entity_topic()
-        if self.lang == "en":
-            return QueryDatabaseEn.get_llm_entity_topic()
+        return self.postgres.get_topics_from_llm_entity_topic()
         
     @error_notifier
     def get_already_collected_keywords(self) -> List[str]:
@@ -442,13 +440,6 @@ class EntitySuggestDaily:
                     trend_keywords_by_entity[entity][keyword].append(suggestion['text'])
         JsonFileHandler(self.trend_keyword_by_entity_file).write(trend_keywords_by_entity)
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
-
-    @error_notifier
-    def update_task_history(self, history:List[Tuple]):
-        try:
-            PostGres.insert_to_task_history(history, "update")
-        except Exception as e:
-            print(f"[{datetime.now()}] failed to update task history: {e}")
 
     def run(self):
         try:
