@@ -2,7 +2,9 @@ import psycopg2
 from psycopg2 import OperationalError
 from typing import List, Tuple
 
-class PostGres:
+class PostGresBase:
+    schema_name: str = ""
+
     @staticmethod
     def connection():
         '''
@@ -19,16 +21,17 @@ class PostGres:
         except OperationalError as e:
             print(f"Error connecting to PostgreSQL: {e}")
             return None
-    
-    @staticmethod
-    def insert_to_task_history(args: List[Tuple], 
+
+    @classmethod
+    def insert_to_task_history(cls,
+                               args: List[Tuple], 
                                 insert_type: str = "ignore" # "update" or "ignore"
                                 ):
         '''
         task_history 테이블에 정보 insert
         '''
         table_name = "task_history"
-        conn = PostGres.connection()
+        conn = cls.connection()
         if conn is None:
             print("Connection failed. Exiting the insert operation.")
             return
@@ -39,13 +42,13 @@ class PostGres:
             for i in range(0, len(args), batch_size):
                 if insert_type == "ignore":
                     insert_query = f"""
-                                    INSERT INTO {table_name} (project_name, task_name, job_id, status, started_at, completed_at, info)
+                                    INSERT INTO {cls.schema_name}.{table_name} (project_name, task_name, job_id, status, started_at, completed_at, info)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                                     ON CONFLICT (project_name, task_name, job_id) DO NOTHING;
                                     """
                 else:
                     insert_query = f"""
-                                    INSERT INTO {table_name} (project_name, task_name, job_id, status, started_at, completed_at, info)
+                                    INSERT INTO {cls.schema_name}.{table_name} (project_name, task_name, job_id, status, started_at, completed_at, info)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                                     ON CONFLICT (project_name, task_name, job_id) DO UPDATE
                                     SET status = EXCLUDED.status,
@@ -61,16 +64,17 @@ class PostGres:
             print(f"Error inserting data: {e}")
         finally:
             conn.close()
-
-    @staticmethod
-    def insert_to_user_interest(args: List[Tuple], 
+    
+    @classmethod
+    def insert_to_user_interest(cls,
+                                args: List[Tuple], 
                                 insert_type: str = "ignore" # "update" or "ignore"
                                 ):
         '''
         user_interest 테이블에 정보 insert
         '''
         table_name = "user_interest"
-        conn = PostGres.connection()
+        conn = cls.connection()
         if conn is None:
             print("Connection failed. Exiting the insert operation.")
             return
@@ -81,13 +85,13 @@ class PostGres:
             for i in range(0, len(args), batch_size):
                 if insert_type == "ignore":
                     insert_query = f"""
-                                    INSERT INTO {table_name} (user_id, interest, description, vector, collected_time)
+                                    INSERT INTO {cls.schema_name}.{table_name} (user_id, interest, description, vector, collected_time)
                                     VALUES (%s, %s, %s, %s, %s)
                                     ON CONFLICT (user_id, interest) DO NOTHING;
                                     """
                 else:
                     insert_query = f"""
-                                    INSERT INTO {table_name} (user_id, interest, description, vector, collected_time)
+                                    INSERT INTO {cls.schema_name}.{table_name} (user_id, interest, description, vector, collected_time)
                                     VALUES (%s, %s, %s, %s, %s)
                                     ON CONFLICT (user_id, interest) DO UPDATE
                                     SET description = EXCLUDED.description,
@@ -102,21 +106,23 @@ class PostGres:
             print(f"Error inserting data: {e}")
         finally:
             conn.close()
-    
-    @staticmethod
-    def get_description_vector_from_user_interest(user:str, interest:str) -> List[Tuple]:
+
+    @classmethod
+    def get_description_vector_from_user_interest(cls,
+                                                  user:str,
+                                                  interest:str) -> List[Tuple]:
         '''
         user_interest 테이블에서 description과 vector를 가져오는 함수
         '''
         table_name = "user_interest"
-        conn = PostGres.connection()
+        conn = cls.connection()
         if conn is None:
             print("Connection failed. Exiting the insert operation.")
             return
         result = []
         try:
             cur = conn.cursor()
-            query = f"SELECT description, vector FROM {table_name} WHERE user_id = '{user}' and interest = '{interest}';"
+            query = f"SELECT description, vector FROM {cls.schema_name}.{table_name} WHERE user_id = '{user}' and interest = '{interest}';"
             cur.execute(query)
             rows = cur.fetchall()
 
@@ -128,3 +134,49 @@ class PostGres:
         finally:
             conn.close()
         return result
+    
+    @classmethod
+    def get_topics_from_llm_entity_topic(cls) -> List[str]:
+        '''
+        llm_entity_topic 테이블에서 모든 topic 리스트를 가져오는 함수
+        '''
+        table_name = "llm_entity_topic"
+        conn = cls.connection()
+        if conn is None:
+            print("Connection failed. Exiting the insert operation.")
+            return
+        result = []
+        try:
+            cur = conn.cursor()
+            query = f"SELECT topic FROM {cls.schema_name}.{table_name};"
+            cur.execute(query)
+            rows = cur.fetchall()
+
+            for row in rows:
+                result.append(row[0])
+            cur.close()
+        except Exception as e:
+            print(f"Error inserting data: {e}")
+        finally:
+            conn.close()
+        return result
+
+
+class PostGresKo(PostGresBase):
+    schema_name: str = "public"
+
+
+class PostGresJa(PostGresBase):
+    schema_name: str = "query_jp_ja"
+
+
+class PostGresEn(PostGresBase):
+    schema_name: str = "query_us_en"
+
+def get_post_gres(lang:str):
+    if lang == "ko":
+        return PostGresKo
+    elif lang == "ja":
+        return PostGresJa
+    elif lang == "en":
+        return PostGresEn
