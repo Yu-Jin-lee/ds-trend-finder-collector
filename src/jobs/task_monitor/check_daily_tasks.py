@@ -70,8 +70,8 @@ class DailyTasksMonitor:
         all_success_files = []
         all_failed_folders = []
         all_failed_files = []
-        trend_kws = {"google":[], "youtube":[]}
-        trend_kws_new = {"google":[], "youtube":[]}
+        trend_kws = {"google":[], "youtube":[], "target":[], "basic":[]}
+        trend_kws_new = {"google":[], "youtube":[], "target":[], "basic":[]}
         for suggest_type, schedule_by_services in schedule.items():
             for service, hours in schedule_by_services.items():
                 for hour in hours:
@@ -95,9 +95,13 @@ class DailyTasksMonitor:
                         if file_trend_keyword in success_files:
                             trend_kws[service] += self.load_keywords_from_hdfs(f"{collect_root_folder}/{file_trend_keyword}")
                             trend_kws[service] = list(set(trend_kws[service]))
+                            trend_kws[suggest_type] += self.load_keywords_from_hdfs(f"{collect_root_folder}/{file_trend_keyword}")
+                            trend_kws[suggest_type] = list(set(trend_kws[suggest_type]))
                         if file_trend_keyword_new in success_files:
                             trend_kws_new[service] += self.load_keywords_from_hdfs(f"{collect_root_folder}/{file_trend_keyword_new}")
                             trend_kws_new[service] = list(set(trend_kws_new[service]))
+                            trend_kws_new[suggest_type] += self.load_keywords_from_hdfs(f"{collect_root_folder}/{file_trend_keyword_new}")
+                            trend_kws_new[suggest_type] = list(set(trend_kws_new[suggest_type]))
                         # 존재하지 않는 파일
                         failed_files = set(check_files) - set(exist_file_list)
                         all_failed_files.extend(list(failed_files))
@@ -151,12 +155,27 @@ class DailyTasksMonitor:
             len(analysis_failed_folders) > 0 or
             len(analysis_failed_files) > 0
             ):
-            error_msg = f"❌{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 실패❌\n[업로드 되지 않은 폴더, 파일 리스트]\n ㄴ수집: {collect_failed_folders+collect_failed_files}\n ㄴ분석: {analysis_failed_folders+analysis_failed_files}"
+            error_msg = (
+                        f"❌{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 실패❌\n"
+                        f"[업로드 되지 않은 폴더, 파일 리스트]\n"
+                        f" ㄴ수집: {collect_failed_folders + collect_failed_files}\n"
+                        f" ㄴ분석: {analysis_failed_folders + analysis_failed_files}"
+                    )
             print(f"[{datetime.now()}] {error_msg}")
             ds_trend_finder_dbgout_error(self.lang,
                                          error_msg)
         else:
-            success_msg = f"✅{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 완료✅\n[오늘의 트렌드 키워드]\n ㄴ전체: total({len(set(trend_kws['google'] + trend_kws['youtube']))}) | new({len(set(trend_kws_new['google'] + trend_kws_new['youtube']))})\n ㄴ구글: total({len((trend_kws['google']))}개) | new({len(trend_kws_new['google'])})\n ㄴ유튜브: total({len(trend_kws['youtube'])}개) | new({len(trend_kws_new['youtube'])})"
+            success_msg = (
+                            f"✅{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 완료✅\n"
+                            f"*[오늘의 트렌드 키워드]*\n"
+                            f"  ㄴ전체: total({len(set(trend_kws['google'] + trend_kws['youtube']))}개) | new({len(set(trend_kws_new['google'] + trend_kws_new['youtube']))}개)\n"
+                            f" *서비스별*\n"
+                            f"  ㄴ구글: total({len((trend_kws['google']))}개) | new({len(trend_kws_new['google'])}개)\n"
+                            f"  ㄴ유튜브: total({len(trend_kws['youtube'])}개) | new({len(trend_kws_new['youtube'])}개)\n"
+                            f" *서제스트 타입별*\n"
+                            f"  ㄴ기본: total({len(trend_kws['basic'])}개) | new({len(trend_kws_new['basic'])}개)\n"
+                            f"  ㄴ대상키워드: total({len(trend_kws['target'])}개) | new({len(trend_kws_new['target'])}개)"
+                        )
             print(f"[{datetime.now()}] {success_msg}")
             ds_trend_finder_dbgout(self.lang,
                                    success_msg)
