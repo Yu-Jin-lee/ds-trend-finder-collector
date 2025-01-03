@@ -92,7 +92,7 @@ class EntitySuggestDaily:
         # hdfs 관련
         self.hdfs = HdfsFileHandler()
         self.hdfs_upload_folder = f"/user/ds/wordpopcorn/{self.lang}/daily/{self.service}_suggest_for_llm_entity_topic/{self.job_id[:4]}/{self.job_id[:6]}/{self.job_id[:8]}/{self.job_id}"
-        self.one_week_ago_trend_keywords = self.get_one_week_ago_trend_keywords(self.job_id[:8], lang) # 이전 7일간 나왔던 트렌드 키워드
+        self.past_trend_keywords = self.get_past_trend_keywords(self.job_id[:8], lang, 28) # 이전 N일전 나왔던 트렌드 키워드
         
         # Task History 관련
         self.log_task_history = log_task_history
@@ -199,7 +199,7 @@ class EntitySuggestDaily:
                 TXTFileHandler(self.trend_keyword_file).write(valid_trend_keywords) # valid_trend_keywords 저장
                 TXTFileHandler(self.except_for_valid_trend_keywords_file).write(list(set(trend_keywords) - set(valid_trend_keywords))) # valid_trend_keywords를 제외한 나머지 저장
                 # 새로 나온 트렌드 키워드 추출
-                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.one_week_ago_trend_keywords), set(valid_trend_keywords)))
+                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.past_trend_keywords), set(valid_trend_keywords)))
                 TXTFileHandler(self.new_trend_keyword_file).write(new_trend_keywords)
             except Exception as e:
                 print(f"[{datetime.now()}] 트렌드 키워드 추출 및 저장 실패 : {e}")
@@ -245,31 +245,27 @@ class EntitySuggestDaily:
         return all_txt_files
 
     @error_notifier
-    def get_one_week_ago_trend_keywords(self, today, lang):
+    def get_past_trend_keywords(self, today:str, lang:str, days:int) -> List[str]:
         '''
-        이전 7일 트렌드 키워드 목록 가져오기
+        이전 트렌드 키워드 목록 가져오기
         '''
         services = ['google', 'youtube']
-        
-        try:
-            today_datetime = datetime.strptime(today, "%Y%m%d")
+                
+        print(f"[{datetime.now()}] {today} 기준 이전 {days}일 트렌드 키워드 목록 가져오기")
+        today_datetime = datetime.strptime(today, "%Y%m%d")
+        past_trend_keywords = []
+        for i in range(1, days+1, 1):
+            date = today_datetime - timedelta(days=i)
+            date = date.strftime("%Y%m%d")
+            for service in services:
+                txt_files = self.get_all_txt_files(f"/user/ds/wordpopcorn/{lang}/daily/{service}_suggest_for_llm_entity_topic/{date[:4]}/{date[:6]}/{date[:8]}")
+                for file in txt_files:
+                    past_trend_keywords += self.load_keywords_from_hdfs(file)
 
-            one_week_ago_trend_keywords = []
-            for i in range(1, 8, 1):
-                date = today_datetime - timedelta(days=i)
-                date = date.strftime("%Y%m%d")
-                for service in services:
-                    txt_files = self.get_all_txt_files(f"/user/ds/wordpopcorn/{lang}/daily/{service}_suggest_for_llm_entity_topic/{date[:4]}/{date[:6]}/{date[:8]}")
-                    for file in txt_files:
-                        one_week_ago_trend_keywords += self.load_keywords_from_hdfs(file)
+        past_trend_keywords = list(set(past_trend_keywords))
+        print(f"키워드 개수 : {len(set(past_trend_keywords))}")
 
-            one_week_ago_trend_keywords = list(set(one_week_ago_trend_keywords))
-            print(f"키워드 개수 : {len(set(one_week_ago_trend_keywords))}")
-
-            return one_week_ago_trend_keywords
-        except Exception as e:
-            print(f"[{datetime.now()}] 이전 7일 트렌드 키워드 목록 가져오기 실패 : {e}")
-            return []
+        return past_trend_keywords
 
     @error_notifier
     def read_already_collected_text(self):
