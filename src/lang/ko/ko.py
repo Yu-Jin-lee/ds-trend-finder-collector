@@ -1,8 +1,10 @@
 import re
 import string
+from datetime import datetime
 
 from lang.lang_base import LanguageBase
 from utils.file import PickleFileHandler
+from utils.text import normalize_spaces
 
 class Ko(LanguageBase):
     def __init__(self) -> None:
@@ -74,6 +76,11 @@ class Ko(LanguageBase):
                     for x in self.complete_hanguls_small_set \
                     for y in self.complete_hanguls_small_set
                     ]
+        elif rank == "4_small_with_space":
+            return [x + y \
+                    for x in self.complete_hanguls_small_set + [" "] \
+                    for y in self.complete_hanguls_small_set + [" "]
+                    if not (x + y).startswith(" ")]
         elif rank == 5:
             return [x + y + z\
                     for x in self.get_characters() \
@@ -81,12 +88,27 @@ class Ko(LanguageBase):
                     for z in self.get_characters()
                     ]
         elif rank == "5_small": # 17,984,728개
-            return [x + y + z\
+            start_time = datetime.now()
+            extension_texts = [x + y + z\
                     for x in self.complete_hanguls_small_set \
                     for y in self.complete_hanguls_small_set \
                     for z in self.complete_hanguls_small_set
                     ]
-     
+            print(f"5_small_with_space: {len(extension_texts)}개, 소요시간: {datetime.now() - start_time}")
+            return extension_texts
+        
+        elif rank == "5_small_with_space":
+            start_time = datetime.now()
+            extension_texts = [normalize_spaces(x + y + z)\
+                    for x in self.complete_hanguls_small_set + [" "] \
+                    for y in self.complete_hanguls_small_set + [" "] \
+                    for z in self.complete_hanguls_small_set + [" "]
+                    if not (x + y + z).startswith(" ")
+                    ]
+            extension_texts = list(set(extension_texts))
+            extension_texts = [et for et in extension_texts if len(extension_texts)>=3]
+            print(f"5_small_with_space: {len(extension_texts)}개, 소요시간: {datetime.now() - start_time}")
+            return extension_texts
      
     def suggest_extension_texts(self, 
                                 stratgy : str = "all",

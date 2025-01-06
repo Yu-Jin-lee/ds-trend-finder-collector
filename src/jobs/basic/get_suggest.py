@@ -222,7 +222,7 @@ class EntitySuggestDaily:
         '''
         lang = self.get_lang(self.lang)
         rank2_targets = lang.suggest_extension_texts_by_rank("2_small")
-        rank4_targets = lang.suggest_extension_texts_by_rank("4_small")
+        rank4_targets = lang.suggest_extension_texts_by_rank("4_small_with_space")
         
         print(f"\n[{datetime.now()}] 4단계 수집할 target 추출 시작")
         targets = []
@@ -253,8 +253,8 @@ class EntitySuggestDaily:
         4단계에서 valid한 서제스트가 valid_threshold개 이상인 완성형 문자로 시작하는 확장 문자만 수집
         '''
         lang = self.get_lang(self.lang)
-        rank4_targets = lang.suggest_extension_texts_by_rank("4_small")
-        rank5_targets = lang.suggest_extension_texts_by_rank("5_small")
+        rank4_targets = lang.suggest_extension_texts_by_rank("4_small_with_space")
+        rank5_targets = lang.suggest_extension_texts_by_rank("5_small_with_space")
         
         print(f"\n[{datetime.now()}] Trie 생성 시작")
         trie = Trie()
