@@ -370,9 +370,9 @@ class EntitySuggestDaily:
             return True
     
     @error_notifier
-    def run_google(self):
+    def run_suggest(self):
         '''
-        구글 서제스트 수집
+        서제스트 수집
         '''
         # 대상 키워드 서제스트 수집       
         try:
@@ -445,8 +445,7 @@ class EntitySuggestDaily:
                 self.task_history.set_task_start()
                 self.task_history.set_task_in_progress()
                 
-            if self.service == "google":
-                self.run_google()
+            self.run_suggest()
 
             self.count_trend_keyword()
 
