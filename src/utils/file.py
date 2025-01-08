@@ -92,6 +92,17 @@ class JsonlFileHandler:
         except Exception as e:
             print(self.path, str(e))
 
+    def count_line(self):
+        cnt = 0
+        try:
+            with jsonlines.open(self.path) as f:
+                for line in f:
+                    cnt += 1
+        except Exception as e:
+            print(f"error from count_line : {self.path}, {str(e)}")
+            return None
+        return cnt
+
 class GZipFileHandler:
     @staticmethod
     def gzip(file : str):
