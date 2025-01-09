@@ -128,16 +128,16 @@ class DailyTasksMonitor:
                     if self.hdfs.exist(check_folder):
                         all_success_folders.append(check_folder)
                         exist_file_list = self.hdfs.list(check_folder)
-                        if service == "google":
-                            check_files = ["issue_analysis.tsv"]
-                        elif service == "youtube":
+                        if service == "youtube" and suggest_type == "basic":
                             check_files = ["daily_issue.tsv", "daily_topic.tsv", "issue_analysis.tsv", "serp_snippet.tsv"]
+                        else:
+                            check_files = ["issue_analysis.tsv"]
                         # 존재하는 파일
                         success_files = set.intersection(set(check_files), set(exist_file_list))
-                        all_success_files.extend(success_files)
+                        all_success_files.extend([f"{check_folder}/{f}" for f in success_files])
                         # 존재하지 않는 파일
                         failed_files = set(check_files) - set(exist_file_list)
-                        all_failed_files.extend(list(failed_files))
+                        all_failed_files.extend([f"{check_folder}/{f}" for f in failed_files])
                     else:
                         all_failed_folders.append(check_folder)
 
