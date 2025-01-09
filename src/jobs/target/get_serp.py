@@ -10,6 +10,7 @@ from utils.task_history import TaskHistory
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 from utils.decorator import error_notifier
 from config import postgres_db_config
+from serp.serp_checker import SerpChecker, SerpCheckerKo, SerpCheckerJa, SerpCheckerEn
 
 def get_keywords_already_collected_serp(
                                         lang:str, # ["ko", "ja"]
@@ -49,6 +50,7 @@ class EntitySerpDaily:
         self.trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords.txt"
         self.new_trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_new.txt"
         self.serp_download_local_path = f"{self.local_folder_path}/{self.job_id}_serp.jsonl"
+        self.serp_download_local_path_non_domestic = f"{self.local_folder_path}/{self.job_id}_serp_non_domestic.jsonl"
         
         # hdfs 관련
         self.hdfs = HdfsFileHandler()
@@ -62,6 +64,9 @@ class EntitySerpDaily:
 
         # slack 관련
         self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
+
+        # serp_checker 관련
+        self.serp_checker = self.get_serp_checker()
 
     @error_notifier
     def append_keywords_to_serp_keywords_txt(self, keywords, log:bool=True):
@@ -82,6 +87,17 @@ class EntitySerpDaily:
             print(f"[{datetime.now()}] hdfs에 키워드 추가 완료 (keywords : {len(keywords)}개 키워드, hdfs_path : {self.hdfs_already_collected_serp_keywords_path})")
 
     @error_notifier
+    def get_serp_checker(self) -> SerpChecker:
+        if self.lang == "ko":
+            return SerpCheckerKo
+        elif self.lang == "ja":
+            return SerpCheckerJa
+        elif self.lang == "en":
+            return SerpCheckerEn
+        else:
+            raise ValueError(f"지원하지 않는 언어입니다. (lang : {self.lang})")
+        
+    @error_notifier
     def collect_serp(self, keywords : List[str]):
         batch_size = 100
         error_keywords_len = 999
@@ -92,12 +108,26 @@ class EntitySerpDaily:
                 print(f"[{datetime.now()}] {i}/{len(keywords)}")
                 res, error_res = self.serp_collector.get_serp_from_serp_api(keywords[i:i+batch_size], 
                                                                             domain="llm_entity_topic")
-                JsonlFileHandler(self.serp_download_local_path).write(res)
+                domestic_serps = []
+                non_domestic_serps = []
+                for r in res:
+                    if self.is_domestic_serp(r): domestic_serps.append(r)
+                    else: non_domestic_serps.append(r)
+                
+                print(f"[{datetime.now()}] domestic_serps : {len(domestic_serps)}/{len(res)}개, non_domestic_serps : {len(non_domestic_serps)}/{len(res)}개")
+
+                JsonlFileHandler(self.serp_download_local_path).write(domestic_serps)
+                JsonlFileHandler(self.serp_download_local_path_non_domestic).write(non_domestic_serps)
+
                 error_keywords += [r[0]['query'] for r in error_res if (len(r)>0 and type(r[0])==dict and 'query' in r[0])]
             error_keywords_len = len(error_keywords) # 에러 키워드 수 갱신
             keywords = error_keywords # 에러 키워드로 다시 수집
             print(f"[{datetime.now()}] 서프 수집 에러 키워드 : {error_keywords_len} 개")
         print(f"[{datetime.now()}] 서프 수집 완료 (local dest : {self.serp_download_local_path})")
+
+    @error_notifier
+    def is_domestic_serp(self, serp:dict) -> bool:
+        return self.serp_checker(serp).is_domestic()
 
     @error_notifier
     def upload_to_hdfs(self):
@@ -110,8 +140,38 @@ class EntitySerpDaily:
                 self.hdfs.upload(source=self.serp_download_local_path, dest=target_hdfs_path, overwrite=True)
             else:
                 print(f"[{datetime.now()}] error from upload_to_hdfs : 로컬에 해당 파일이 존재하지 않습니다 (serp_download_local_path : {self.serp_download_local_path})")
+            if os.path.exists(self.serp_download_local_path_non_domestic):
+                non_domestic_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_serp_non_domestic.jsonl.gz"
+                self.hdfs.upload(source=self.serp_download_local_path_non_domestic, dest=non_domestic_hdfs_path, overwrite=True)
+            else:
+                print(f"[{datetime.now()}] error from upload_to_hdfs : 로컬에 해당 파일이 존재하지 않습니다 (serp_download_local_path_non_domestic : {self.serp_download_local_path_non_domestic})")
         except Exception as e:
             print(f"[{datetime.now()}] error from upload_to_hdfs : {e}")
+
+    @error_notifier
+    def count_line(self, path) -> int:
+        if path.endswith(".gz"): # 압축 파일이면 압축해제
+            read_path = GZipFileHandler.ungzip(path)
+        else:
+            read_path = path
+        lines = JsonlFileHandler(read_path).count_line()
+        if (path != read_path and 
+            ~read_path.endswith(".gz")): # 압축 풀었던 파일 다시 압축
+            GZipFileHandler.gzip(read_path)
+        return lines
+    
+    @error_notifier
+    def extract_statistics(self):
+        '''
+        수집 결과에서 통계 정보 추출
+        '''
+        domestic_serp_count = self.count_line(self.serp_download_local_path)
+        non_domestic_serp_count = self.count_line(self.serp_download_local_path_non_domestic)
+        return {
+            "total": domestic_serp_count + non_domestic_serp_count,
+            "domestic": domestic_serp_count,
+            "non_domestic": non_domestic_serp_count
+        }
 
     def run(self):
         try:
@@ -170,6 +230,7 @@ class EntitySerpDaily:
 
             # 압축
             self.serp_download_local_path = GZipFileHandler.gzip(self.serp_download_local_path)
+            self.serp_download_local_path_non_domestic = GZipFileHandler.gzip(self.serp_download_local_path_non_domestic)
 
             self.upload_to_hdfs()
             
@@ -183,8 +244,9 @@ class EntitySerpDaily:
                 self.task_history.set_task_error(error_msg=str(e))
         else:
             print(f"[{datetime.now()}] 서프 수집 완료")
+            statistic = self.extract_statistics()
             ds_trend_finder_dbgout(self.lang,
-                                   f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}")
+                                   f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}\nStatistics : (total: {statistic['total']} | domestic: {statistic['domestic']} | non_domestic: {statistic['non_domestic']})")
         
 def find_last_job_id(suggest_type, lang, service, today):
     data_path = f"./data/result/{suggest_type}/{service}/{lang}"
