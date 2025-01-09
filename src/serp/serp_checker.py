@@ -17,7 +17,8 @@ class SerpChecker(ABC):
 
     def _extract_text(self) -> str:
         serp = Serp(self.serp)
-        all_text = " ".join(serp.titles()) + " ".join(serp.snippets())
+        all_text = " ".join(serp.titles()) + " ".join(serp.snippets()) # 타이틀, 스니펫 사용
+        all_text = all_text.replace(' ', '') # 공백 제거
         return all_text
     
     def _calculate_ratio(self, pattern):
