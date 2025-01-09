@@ -44,7 +44,7 @@ class SerpChecker(ABC):
         ...
         
 class SerpCheckerKo(SerpChecker):
-    def is_domestic(self, ratio_threshold = 0.2, return_ratio=False):
+    def is_domestic(self, ratio_threshold = 0.05, return_ratio=False):
         """한국어가 ratio_threshold 이상 포함되어 있는지 판단"""
         ratio = self._calculate_ratio(r'[가-힣ㄱ-ㅎㅏ-ㅣ]')
         if return_ratio:
