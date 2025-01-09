@@ -21,9 +21,9 @@ class DailyTasksMonitor:
                     "google" : [0, 12],
                     "youtube" : [6, 18]
                 },
-                "target" : {
+                "target" : { # google, youtube 8시간 간격
                     "google" : [0],
-                    "youtube" : []
+                    "youtube" : [8]
                 }
             },
             "ja" : {
@@ -31,19 +31,19 @@ class DailyTasksMonitor:
                     "google" : [2, 14],
                     "youtube" : [8, 20]
                 },
-                "target" : {
-                    "google" : [0],
-                    "youtube" : []
+                "target" : { # google, youtube 8시간 간격
+                    "google" : [2],
+                    "youtube" : [10]
                 }
             },
             "en" : {
                 "basic" : {
-                    "google" : [14-14, 26-14],
-                    "youtube" : [18-14, 30-14]
+                    "google" : [16-14, 28-14],
+                    "youtube" : [20-14, 32-14]
                 },
-                "target" : {
+                "target" : { # google, youtube 8시간 간격
                     "google" : [14-14],
-                    "youtube" : []
+                    "youtube" : [22-14]
                 }
             }
         }
