@@ -90,44 +90,96 @@ class TaskHistory:
         except Exception as e:
             print(f"[{datetime.now()}] An error occurred while updating the task to in progress: {e}")
 
-    def set_task_completed(self):
+    def set_task_completed(self, additional_info: dict = None):
         """
         Sets the task status to 'Completed' and updates the completed_at field.
+        If additional_info is provided, it merges with the existing info field.
+        :param additional_info: Dictionary containing additional information to update.
         """
-        try:
-            connection = self.connect_to_db()
-            with connection.cursor() as cursor:
-                query = sql.SQL(f"""
-                    UPDATE {self.schema}.{self.table_name}
-                    SET status = %s, completed_at = %s
-                    WHERE project_name = %s AND task_name = %s AND job_id = %s
-                """)
-                cursor.execute(
-                    query,
-                    (TaskStatus.COMPLETED.value, datetime.now(), self.project_name, self.task_name, self.job_id)
-                )
-                print(f"[{datetime.now()}] Task {self.task_name} (job_id: {self.job_id}) is now completed.")
-            connection.close()
-        except Exception as e:
-            print(f"[{datetime.now()}] An error occurred while updating the task to completed: {e}")
+        # try:
+        connection = self.connect_to_db()
+        with connection.cursor() as cursor:
+            # Fetch the current info field
+            query_fetch = sql.SQL(f"""
+                SELECT info
+                FROM {self.schema}.{self.table_name}
+                WHERE project_name = %s AND task_name = %s AND job_id = %s
+            """)
+            cursor.execute(query_fetch, (self.project_name, self.task_name, self.job_id))
+            result = cursor.fetchone()
+            print(f"result : {result[0]} ({type(result[0])})")
+            # Initialize existing_info as an empty dict if the field is NULL
+            existing_info = {} if result is None or result[0] is None else result[0]
+            print(f"existing_info : {existing_info}")
 
-    def set_task_error(self, error_msg:str=""):
+            # Merge existing info with additional_info
+            if additional_info:
+                existing_info.update(additional_info)
+
+            # Update the task status and info field
+            query_update = sql.SQL(f"""
+                UPDATE {self.schema}.{self.table_name}
+                SET status = %s, completed_at = %s, info = %s
+                WHERE project_name = %s AND task_name = %s AND job_id = %s
+            """)
+            cursor.execute(
+                query_update,
+                (
+                    TaskStatus.COMPLETED.value,
+                    datetime.now(),
+                    json.dumps(existing_info, ensure_ascii=False),
+                    self.project_name,
+                    self.task_name,
+                    self.job_id,
+                )
+            )
+            print(f"[{datetime.now()}] Task {self.task_name} (job_id: {self.job_id}) is now completed with updated info.")
+        connection.close()
+        # except Exception as e:
+        #     print(f"[{datetime.now()}] An error occurred while updating the task to completed: {e}")
+
+    def set_task_error(self, error_msg: str = ""):
         """
         Sets the task status to 'Error' and updates the completed_at field along with error info.
+        If the info field already has data, it adds the error_msg key to the existing dictionary.
+        :param error_msg: Error message to be added to the info field.
         """
         try:
             connection = self.connect_to_db()
             with connection.cursor() as cursor:
-                query = sql.SQL(f"""
+                # Fetch the current info field
+                query_fetch = sql.SQL(f"""
+                    SELECT info
+                    FROM {self.schema}.{self.table_name}
+                    WHERE project_name = %s AND task_name = %s AND job_id = %s
+                """)
+                cursor.execute(query_fetch, (self.project_name, self.task_name, self.job_id))
+                result = cursor.fetchone()
+
+                # Initialize existing_info as an empty dict if the field is NULL
+                existing_info = {} if result is None or result[0] is None else result[0]
+
+                # Add error_msg to the existing info
+                existing_info["error_msg"] = error_msg
+
+                # Update the task status and info field
+                query_update = sql.SQL(f"""
                     UPDATE {self.schema}.{self.table_name}
                     SET status = %s, completed_at = %s, info = %s
                     WHERE project_name = %s AND task_name = %s AND job_id = %s
                 """)
                 cursor.execute(
-                    query,
-                    (TaskStatus.FAILED.value, datetime.now(), json.dumps({"error_msg":error_msg}, ensure_ascii=False), self.project_name, self.task_name, self.job_id)
+                    query_update,
+                    (
+                        TaskStatus.FAILED.value,
+                        datetime.now(),
+                        json.dumps(existing_info, ensure_ascii=False),
+                        self.project_name,
+                        self.task_name,
+                        self.job_id,
+                    )
                 )
-                print(f"[{datetime.now()}] Task {self.task_name} (job_id: {self.job_id}) ended with an error.")
+                print(f"[{datetime.now()}] Task {self.task_name} (job_id: {self.job_id}) ended with an error and updated info.")
             connection.close()
         except Exception as e:
             print(f"[{datetime.now()}] An error occurred while updating the task to error status: {e}")

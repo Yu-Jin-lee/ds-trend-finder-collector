@@ -229,8 +229,6 @@ class EntitySerpDaily:
             # HDFS 업로드
             self.upload_to_hdfs()
             
-            if self.log_task_history:
-                self.task_history_updater.set_task_completed()
         except Exception as e:
             print(f"[{datetime.now()}] 서프 수집 실패 작업 종료\nError Msg : {e}")
             ds_trend_finder_dbgout_error(self.lang,
@@ -240,6 +238,8 @@ class EntitySerpDaily:
         else:
             print(f"[{datetime.now()}] 서프 수집 완료")
             statistic = self.extract_statistics()
+            if self.log_task_history:
+                self.task_history_updater.set_task_completed(additional_info=statistic)
             ds_trend_finder_dbgout(self.lang,
                                    f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}\nStatistics : (total: {statistic['total']} | domestic: {statistic['domestic']} | non_domestic: {statistic['non_domestic']})")
         
