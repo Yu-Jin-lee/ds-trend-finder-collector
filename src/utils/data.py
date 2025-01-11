@@ -58,6 +58,35 @@ def remove_duplicates_preserve_order(lst):
     seen = set()
     return [x for x in lst if x not in seen and not seen.add(x)]
 
+def remove_duplicates_with_spaces(keywords):
+    """
+    문자열 리스트에서 띄어쓰기를 제거한 후 중복되는 키워드를 제거하고,
+    중복된 키워드 중 가장 먼저 등장한 원래 문자열을 반환합니다.
+
+    Args:
+        keywords (list of str): 처리할 문자열 리스트.
+
+    Returns:
+        list of str: 띄어쓰기를 제거한 후 중복 없이 원래 형태를 유지한 문자열 리스트.
+
+    Example:
+        >>> keywords = ["hello world", "helloworld", "Python", "Py thon", "programming", "pro gram ming"]
+        >>> remove_duplicates_with_spaces(keywords)
+        ['hello world', 'Python', 'programming']
+    """
+    # 중복을 제거하면서 순서를 유지하기 위한 딕셔너리
+    seen = {}
+    
+    for keyword in keywords:
+        # 띄어쓰기를 제거한 키워드 생성
+        normalized = keyword.replace(" ", "")
+        # 이미 본 키워드가 아니라면 추가
+        if normalized not in seen:
+            seen[normalized] = keyword  # 원래 형태를 저장
+            
+    # 저장된 원래 키워드 형태로 반환
+    return list(seen.values())
+
 class TrieNode:
     def __init__(self):
         self.children = {}

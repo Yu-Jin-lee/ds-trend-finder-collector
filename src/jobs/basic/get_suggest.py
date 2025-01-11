@@ -8,7 +8,7 @@ from typing import List
 from collector.suggest_collector.suggest_collect import Suggest
 from validator.trend_keyword_validator import is_trend_keyword, cnt_valid_suggest
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, has_file_extension
-from utils.data import Trie, remove_duplicates_from_new_keywords
+from utils.data import Trie, remove_duplicates_from_new_keywords, remove_duplicates_with_spaces
 from utils.hdfs import HdfsFileHandler
 from utils.task_history import TaskHistory
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
@@ -47,6 +47,9 @@ class EntitySuggestDaily:
 
         # slack 관련
         self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
+
+        # 통계량 관련
+        self.statistics = {"call": {}, "valid": {}, "trend_keyword": {}}
 
     @error_notifier
     def get_lang(self, lang:str):
@@ -129,13 +132,34 @@ class EntitySuggestDaily:
         '''
         lang = self.get_lang(self.lang)
         if self.lang == "ko":
+            extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
+            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            extension_rank_2 = lang.suggest_extension_texts_by_rank(2)
+            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            extension_rank_3 = lang.suggest_extension_texts_by_rank(3)
+            self.statistics["call"]["rank_3"] = len(extension_rank_3)
             complete_letters = ['가', '개', '거', '게', '겨', '계', '고', '과', '괴', '교', '구', '궈', '궤', '귀', '규', '그', '기', '까', '깨', '꺼', '께', '껴', '꼬', '꽤', '꾀', '꾸', '꿔', '꿰', '뀌', '끄', '끼', '나', '내', '냐', '너', '네', '녀', '노', '놔', '뇌', '뇨', '누', '눠', '뉘', '뉴', '느', '늬', '니', '다', '대', '더', '데', '뎌', '도', '돼', '되', '두', '둬', '뒤', '듀', '드', '디', '따', '때', '떠', '떼', '또', '뚜', '뛰', '뜨', '띄', '띠', '라', '래', '랴', '러', '레', '려', '례', '로', '뢰', '료', '루', '뤄', '뤼', '류', '르', '리', '마', '매', '머', '메', '며', '모', '묘', '무', '뭐', '뮤', '므', '미', '바', '배', '버', '베', '벼', '보', '봐', '부', '뷔', '뷰', '브', '비', '빠', '빼', '뻐', '뼈', '뽀', '뾰', '뿌', '쁘', '삐', '사', '새', '샤', '섀', '서', '세', '셔', '셰', '소', '쇄', '쇠', '쇼', '수', '쉐', '쉬', '슈', '스', '시', '싸', '써', '쎄', '쏘', '쐐', '쑤', '쓰', '씌', '씨', '아', '애', '야', '얘', '어', '에', '여', '예', '오', '와', '왜', '외', '요', '우', '워', '웨', '위', '유', '으', '의', '이', '자', '재', '저', '제', '져', '조', '좌', '죄', '죠', '주', '줘', '쥐', '쥬', '즈', '지', '짜', '째', '쩌', '쪼', '쯔', '찌', '차', '채', '처', '체', '쳐', '초', '최', '추', '춰', '췌', '취', '츄', '츠', '치', '카', '캐', '커', '케', '켜', '코', '콰', '쾌', '쿄', '쿠', '쿼', '퀘', '퀴', '큐', '크', '키', '타', '태', '터', '테', '텨', '토', '퇴', '투', '퉈', '튀', '튜', '트', '티', '파', '패', '퍼', '페', '펴', '폐', '포', '표', '푸', '퓨', '프', '피', '하', '해', '허', '헤', '혀', '혜', '호', '화', '회', '효', '후', '훼', '휘', '휴', '흐', '희', '히']
-            suggest_extension_texts_rank_4 = [x + y for x in complete_letters for y in complete_letters]
-            return lang.suggest_extension_texts_by_rank(1) + lang.suggest_extension_texts_by_rank(2) + lang.suggest_extension_texts_by_rank(3) + suggest_extension_texts_rank_4
+            extension_rank_4 = [x + y for x in complete_letters for y in complete_letters]
+            self.statistics["call"]["rank_4"] = len(extension_rank_4)
+            return extension_rank_1 + extension_rank_2 + extension_rank_3 + extension_rank_4
         if self.lang == "ja": # 일본
-            return lang.suggest_extension_texts_by_rank("1_kanji_300") + lang.suggest_extension_texts_by_rank("2_kanji_300") + lang.suggest_extension_texts_by_rank("3_kanji_300")
+            extension_rank_1 = lang.suggest_extension_texts_by_rank("1_kanji_300")
+            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            extension_rank_2 = lang.suggest_extension_texts_by_rank("2_kanji_300")
+            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            extension_rank_3 = lang.suggest_extension_texts_by_rank("3_kanji_300")
+            self.statistics["call"]["rank_3"] = len(extension_rank_3)
+            return extension_rank_1 + extension_rank_2 + extension_rank_3
         if self.lang == "en":
-            return lang.suggest_extension_texts_by_rank(1) + lang.suggest_extension_texts_by_rank(2) + lang.suggest_extension_texts_by_rank(3) + lang.suggest_extension_texts_by_rank(4)
+            extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
+            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            extension_rank_2 = lang.suggest_extension_texts_by_rank(2)
+            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            extension_rank_3 = lang.suggest_extension_texts_by_rank(3)
+            self.statistics["call"]["rank_3"] = len(extension_rank_3)
+            extension_rank_4 = lang.suggest_extension_texts_by_rank(4)
+            self.statistics["call"]["rank_4"] = len(extension_rank_4)
+            return extension_rank_1 + extension_rank_2 + extension_rank_3 + extension_rank_4
         else:
             print(f"[{datetime.now()}] {self.lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily-get_basic_extension)")
             raise ValueError(f"{self.lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily-get_basic_extension)")
@@ -223,6 +247,7 @@ class EntitySuggestDaily:
         lang = self.get_lang(self.lang)
         rank2_targets = lang.suggest_extension_texts_by_rank("2_small")
         rank4_targets = lang.suggest_extension_texts_by_rank("4_small_with_space")
+        self.statistics["valid"]["rank2"] = {"1":0, "2":0, "3":0, "4":0, "5":0, "6":0, "7":0, "8":0, "9":0, "10":0}
         
         print(f"\n[{datetime.now()}] 4단계 수집할 target 추출 시작")
         targets = []
@@ -235,6 +260,9 @@ class EntitySuggestDaily:
                 valid_suggest_cnt, valid_suggests = cnt_valid_suggest(suggestions=line['suggestions'], 
                                                                       input_text=keyword, 
                                                                       return_result=True)
+                if str(valid_suggest_cnt) not in self.statistics["valid"]["rank2"]:
+                    self.statistics["valid"]["rank2"][str(valid_suggest_cnt)] = 0
+                self.statistics["valid"]["rank2"][str(valid_suggest_cnt)] += 1
                 JsonlFileHandler(valid_suggest_result_path).write({keyword : valid_suggests})
                 if valid_suggest_cnt >= valid_threshold:
                     targets += [t for t in rank4_targets if t.startswith(keyword)] # 4단계 확장 문자 중 2단계 확장 문자로 시작하는 것만 추출
@@ -255,6 +283,7 @@ class EntitySuggestDaily:
         lang = self.get_lang(self.lang)
         rank4_targets = lang.suggest_extension_texts_by_rank("4_small_with_space")
         rank5_targets = lang.suggest_extension_texts_by_rank("5_small_with_space")
+        self.statistics["valid"]["rank4"] = {"1":0, "2":0, "3":0, "4":0, "5":0, "6":0, "7":0, "8":0, "9":0, "10":0}
         
         print(f"\n[{datetime.now()}] Trie 생성 시작")
         trie = Trie()
@@ -273,6 +302,9 @@ class EntitySuggestDaily:
                 valid_suggest_cnt, valid_suggests = cnt_valid_suggest(suggestions=line['suggestions'], 
                                                                       input_text=keyword, 
                                                                       return_result=True)
+                if str(valid_suggest_cnt) not in self.statistics["valid"]["rank4"]:
+                    self.statistics["valid"]["rank4"][str(valid_suggest_cnt)] = 0
+                self.statistics["valid"]["rank4"][str(valid_suggest_cnt)] += 1
                 JsonlFileHandler(valid_suggest_result_path).write({keyword : valid_suggests})
                 if valid_suggest_cnt >= valid_threshold:
                     filtered_targets = trie.starts_with(keyword)
@@ -298,9 +330,13 @@ class EntitySuggestDaily:
         lang = self.get_lang(self.lang)
         num_process = 100
         # 1, 2, 3 단계 모두 수집
-        targets = lang.suggest_extension_texts_by_rank(1) + \
-                lang.suggest_extension_texts_by_rank("2_small") + \
-                lang.suggest_extension_texts_by_rank("3_small")
+        extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
+        self.statistics['call']['rank1'] = len(extension_rank_1)
+        extension_rank_2 = lang.suggest_extension_texts_by_rank("2_small")
+        self.statistics['call']['rank2'] = len(extension_rank_2)
+        extension_rank_3 = lang.suggest_extension_texts_by_rank("3_small")
+        self.statistics['call']['rank3'] = len(extension_rank_3)
+        targets = extension_rank_1 + extension_rank_2 + extension_rank_3
         print(f"[{datetime.now()}] 1, 2, 3 단계 extension text 추가 후 개수 {len(targets)} | process_num : {num_process}")
         already_collected_keywords = self.get_already_collected_keywords()
         targets = list(set(targets) - set(already_collected_keywords))
@@ -311,6 +347,7 @@ class EntitySuggestDaily:
         targets = self.filtering_rank_4_targets()
         already_collected_keywords = self.get_already_collected_keywords()
         targets = list(set(targets) - set(already_collected_keywords))
+        self.statistics["call"]["rank4"] = len(targets)
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         # 5단계 수집
@@ -318,17 +355,24 @@ class EntitySuggestDaily:
         targets = self.filtering_rank_5_targets()
         already_collected_keywords = self.get_already_collected_keywords()
         targets = list(set(targets) - set(already_collected_keywords))
+        self.statistics["call"]["rank5"] = len(targets)
         self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=num_process)
 
         self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         print(f"[{datetime.now()}] {self.service} {self.lang} 기본 서제스트 수집 완료\n\n")
 
     @error_notifier
-    def count_trend_keyword(self) -> int:
+    def count_trend_keyword(self) -> dict:
+        # 총 트렌드 키워드 개수
         trend_keywords = TXTFileHandler(self.trend_keyword_file).read_lines()
-        trend_keywords = list(set(trend_keywords))
+        trend_keywords = remove_duplicates_with_spaces(trend_keywords)
         print(f"[{datetime.now()}] {self.lang} {self.service} 트렌드 키워드 개수 : {len(trend_keywords)}")
-        return len(trend_keywords)
+        # 새로 나온 트렌드 키워드 개수
+        new_trend_keywords = TXTFileHandler(self.new_trend_keyword_file).read_lines()
+        new_trend_keywords = remove_duplicates_with_spaces(new_trend_keywords)
+        print(f"[{datetime.now()}] {self.lang} {self.service} 새로 나온 트렌드 키워드 개수 : {len(new_trend_keywords)}")
+        return {"total": len(trend_keywords),
+                "new": len(new_trend_keywords)}
 
     @error_notifier
     def upload_to_hdfs(self):
@@ -353,23 +397,35 @@ class EntitySuggestDaily:
             else:
                 self.run_basic()
 
-            self.count_trend_keyword()
+            trend_keyword_cnt = self.count_trend_keyword()
+            self.statistics["trend_keyword"] = trend_keyword_cnt
 
             self.upload_to_hdfs()
             
             if self.log_task_history:
-                self.task_history_updater.set_task_completed()
+                self.task_history_updater.set_task_completed(additional_info=self.statistics)
             end_time = datetime.now()
         except Exception as e:
             print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
-            ds_trend_finder_dbgout_error(self.lang,
-                                         f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 실패 작업 종료")
+            error_msg = (
+                f"{self.slack_prefix_msg}\n"
+                f"Message: 서제스트 수집 실패 작업 종료\n"
+                f"Error: {e}"
+            )
+            ds_trend_finder_dbgout_error(self.lang, error_msg)
             if self.log_task_history:
                 self.task_history_updater.set_task_error(error_msg=str(e))
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
-            ds_trend_finder_dbgout(self.lang,
-                                   f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
+            print(f"[Statistics]\n{self.statistics}")
+            success_msg = (
+                            f"{self.slack_prefix_msg}\n"
+                            f"Message: 서제스트 수집 완료\n"
+                            f"Upload Path: {self.hdfs_upload_folder}\n"
+                            f"Processing Time: {end_time-start_time} 소요\n"
+                            f"Statistics: (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})\n"
+                        )
+            ds_trend_finder_dbgout(self.lang, success_msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
