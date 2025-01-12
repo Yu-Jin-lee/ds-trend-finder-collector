@@ -9,7 +9,7 @@ from validator.trend_keyword_validator import is_trend_keyword
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, JsonFileHandler, has_file_extension
 from utils.db import QueryDatabaseKo, QueryDatabaseJa, QueryDatabaseEn
 from utils.text import extract_initial
-from utils.data import combine_dictionary
+from utils.data import combine_dictionary, remove_duplicates_with_spaces
 from utils.hdfs import HdfsFileHandler
 from utils.postgres import get_post_gres
 from lang import Ko, Ja, En, filter_en_valid_trend_keyword, filter_en_valid_token_count
@@ -101,6 +101,9 @@ class EntitySuggestDaily:
         # slack 관련
         self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
 
+        # 통계량 관련
+        self.statistics = {"call": {}, "valid": {}, "trend_keyword": {}}
+
     @error_notifier
     def get_lang(self, lang:str):
         if lang == "ko":
@@ -133,8 +136,12 @@ class EntitySuggestDaily:
         대상 키워드 있을 경우 확장 텍스트 가져오기
         '''
         lang = self.get_lang(self.lang)
-        return lang.suggest_extension_texts_by_rank(0) + lang.suggest_extension_texts_by_rank(1)
-
+        extension_rank_0 = lang.suggest_extension_texts_by_rank(0)
+        self.statistics["call"]["rank0"] = len(extension_rank_0)
+        extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
+        self.statistics["call"]["rank1"] = len(extension_rank_1)
+        return extension_rank_0 + extension_rank_1
+    
     @error_notifier
     def make_check_dict(self, lang:str) -> dict:
         '''
@@ -292,7 +299,11 @@ class EntitySuggestDaily:
             target_num_process = 95
             print(f"[{datetime.now()}] 수집 프로세스 개수 : {target_num_process}")
             lang = self.get_lang(self.lang)
-            extension_texts = lang.suggest_extension_texts_by_rank(0) + lang.suggest_extension_texts_by_rank(1) # 확장 텍스트 1글자임
+            extension_rank0 = lang.suggest_extension_texts_by_rank(0)
+            self.statistics['call']['rank0'] = len(extension_rank0)
+            extension_rank1 = lang.suggest_extension_texts_by_rank(1)
+            self.statistics['call']['rank1'] = len(extension_rank1)
+            extension_texts = extension_rank0 + extension_rank1 # 확장 텍스트 1글자임
             if self.lang == "ja": # 일본의 경우 띄어쓰기 하지 않음
                 targets = [topic + t for topic in llm_entity_topic for t in extension_texts] # 서제스트 수집할 키워드 리스트
             else:
@@ -325,19 +336,21 @@ class EntitySuggestDaily:
             check_dict = combine_dictionary([self.make_check_dict("ko"), self.make_check_dict("ja"), self.make_check_dict("en")])
             targets = []
             cnt = 0
+            self.statistics['valid']['rank2'] = {"1":0, "2":0, "3":0, "4":0, "5":0, "6":0, "7":0, "8":0, "9":0, "10":0}
             for line in JsonlFileHandler(self.local_result_path).read_generator(line_len = self.target_letter_suggest_length): # 대상 키워드의 0, 1 단계만 수집된 상태 (get_target_letter_suggest의 결과)
                 cnt += 1
                 extension_letter = line['keyword'][-1] # 확장 문자
                 target_keyword = line['keyword'][:-1].strip() # 대상 키워드
                 if (target_keyword in llm_entity_topic and
                     extension_letter in check_dict): # 해당 문자가 초성인 경우
-                    # print(f"\n[{datetime.now()}] 대상 키워드 : {target_keyword} | 확장 문자 : {extension_letter}")
-                    if cnt_valid_suggest(line['suggestions'], 
+                    valid_cnt = cnt_valid_suggest(line['suggestions'], 
                                             target_keyword=target_keyword, 
                                             extension=extension_letter, 
-                                            log=False) >= valid_threshold: # valid한 서제스트가 valid_threshold개 이상이면
-                        # print(f"=>😀'{extension_letter}'의 valid한 서제스트 개수가 {valid_threshold}개 이상입니다.\n")
-                        # 해당 초성으로 시작하는 완성형 문자의 서제스트만 수집
+                                            log=False)
+                    if str(valid_cnt) not in self.statistics['valid']['rank2']:
+                        self.statistics['valid']['rank2'][str(valid_cnt)] = 0
+                    self.statistics['valid']['rank2'][str(valid_cnt)] += 1
+                    if valid_cnt >= valid_threshold: # valid한 서제스트가 valid_threshold개 이상이면
                         extension_texts = list(set(check_dict[extension_letter]))
                         extension_texts = [t for t in extension_texts if t != ""]
                         if self.lang == "ja":
@@ -352,6 +365,7 @@ class EntitySuggestDaily:
             print(f"[{datetime.now()}] 이미 수집된 키워드 제외한 개수 {len(targets)}")
             already_collected_keywords = self.get_already_collected_keywords()
             targets = list(set(targets) - set(already_collected_keywords))
+            self.statistics['call']['rank2'] = len(targets)
             self.get_suggest_and_request_serp(targets, self.local_result_path, num_processes=target_num_process)
         except Exception as e:
             print(f"[{datetime.now()}] ERROR from get_target_charactor_suggest : {e}")
@@ -391,15 +405,18 @@ class EntitySuggestDaily:
             print(f"[{datetime.now()}] {self.lang} {self.service} 대상 키워드 서제스트 수집 완료")
 
     @error_notifier
-    def count_trend_keyword(self) -> int:
-        try:
-            trend_keywords = TXTFileHandler(self.trend_keyword_file).read_lines()
-            trend_keywords = list(set(trend_keywords))
-            print(f"[{datetime.now()}] {self.lang} {self.service} 트렌드 키워드 개수 : {len(trend_keywords)}")
-            return len(trend_keywords)
-        except Exception as e:
-            print(f"[{datetime.now()}] Error from count_trend_keyword | {self.lang} {self.service} 트렌드 키워드 개수 추출 실패 | {e}")
-
+    def count_trend_keyword(self) -> dict:
+        # 총 트렌드 키워드 개수
+        trend_keywords = TXTFileHandler(self.trend_keyword_file).read_lines()
+        trend_keywords = remove_duplicates_with_spaces(trend_keywords)
+        print(f"[{datetime.now()}] {self.lang} {self.service} 트렌드 키워드 개수 : {len(trend_keywords)}")
+        # 새로 나온 트렌드 키워드 개수
+        new_trend_keywords = TXTFileHandler(self.new_trend_keyword_file).read_lines()
+        new_trend_keywords = remove_duplicates_with_spaces(new_trend_keywords)
+        print(f"[{datetime.now()}] {self.lang} {self.service} 새로 나온 트렌드 키워드 개수 : {len(new_trend_keywords)}")
+        return {'total': len(trend_keywords),
+                'new': len(new_trend_keywords)}
+    
     @error_notifier
     def upload_to_hdfs(self):
         target_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}.jsonl.gz"
@@ -447,12 +464,13 @@ class EntitySuggestDaily:
                 
             self.run_suggest()
 
-            self.count_trend_keyword()
+            trend_keyword_cnt = self.count_trend_keyword()
+            self.statistics["trend_keyword"] = trend_keyword_cnt
 
             self.upload_to_hdfs()
             
             if self.log_task_history:
-                self.task_history.set_task_completed()
+                self.task_history.set_task_completed(additional_info=self.statistics)
             end_time = datetime.now()
         except Exception as e:
             print(f"[{datetime.now()}] 서제스트 수집 실패 작업 종료\nError Msg : {e}")
@@ -462,8 +480,14 @@ class EntitySuggestDaily:
                 self.task_history.set_task_error(error_msg=str(e))
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
-            ds_trend_finder_dbgout(self.lang,
-                                   f"{self.slack_prefix_msg}\nMessage : 서제스트 수집 완료\nUpload Path : {self.hdfs_upload_folder}\n{end_time-start_time} 소요")
+            success_msg = (
+                f"{self.slack_prefix_msg}\n"
+                f"Message: 서제스트 수집 완료\n"
+                f"Upload Path: {self.hdfs_upload_folder}\n"
+                f"Process Time: {end_time-start_time}\n"
+                f"Statistics: (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})"
+            )
+            ds_trend_finder_dbgout(self.lang, success_msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

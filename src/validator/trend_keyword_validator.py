@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Tuple, Union
 from datetime import datetime
 from validator.suggest_validator import SuggestValidator
 
 def cnt_valid_suggest(suggestions:List[dict], # 서제스트 결과
                       input_text:str, # 실제 입력한 키워드
                       log:bool=False,
-                      return_result:bool=False) -> int:
+                      return_result:bool=False) -> Union[int, Tuple[int, List[str]]]:
     '''
     기본 서제스트 결과에서 유효한 서제스트 개수를 반환
     '''
@@ -23,6 +23,8 @@ def cnt_valid_suggest(suggestions:List[dict], # 서제스트 결과
     except Exception as e:
         if log:
             print(f"[{datetime.now()}] Error from cnt_valid_suggest: (target_keyword:{input_text} | error msg : {e}")
+        if return_result:
+            return 0, []
         return 0
     
 def is_trend_keyword(text : str,
