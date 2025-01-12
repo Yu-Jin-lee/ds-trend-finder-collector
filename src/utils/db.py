@@ -1199,7 +1199,7 @@ class QueryDatabaseEn:
         return []
     
     @staticmethod
-    def get_llm_entity_topic() -> pd.DataFrame:
+    def get_llm_entity_topic() -> List[str]:
         engine, metadata = QueryDatabaseEn.get_connection()
         query = f"SELECT keyword FROM {QueryDatabaseEn.schema}.llm_entity_topic;"
 
