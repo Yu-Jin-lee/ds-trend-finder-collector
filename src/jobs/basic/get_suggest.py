@@ -133,32 +133,32 @@ class EntitySuggestDaily:
         lang = self.get_lang(self.lang)
         if self.lang == "ko":
             extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
-            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            self.statistics["call"]["rank1"] = len(extension_rank_1)
             extension_rank_2 = lang.suggest_extension_texts_by_rank(2)
-            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            self.statistics["call"]["rank2"] = len(extension_rank_2)
             extension_rank_3 = lang.suggest_extension_texts_by_rank(3)
-            self.statistics["call"]["rank_3"] = len(extension_rank_3)
+            self.statistics["call"]["rank3"] = len(extension_rank_3)
             complete_letters = ['가', '개', '거', '게', '겨', '계', '고', '과', '괴', '교', '구', '궈', '궤', '귀', '규', '그', '기', '까', '깨', '꺼', '께', '껴', '꼬', '꽤', '꾀', '꾸', '꿔', '꿰', '뀌', '끄', '끼', '나', '내', '냐', '너', '네', '녀', '노', '놔', '뇌', '뇨', '누', '눠', '뉘', '뉴', '느', '늬', '니', '다', '대', '더', '데', '뎌', '도', '돼', '되', '두', '둬', '뒤', '듀', '드', '디', '따', '때', '떠', '떼', '또', '뚜', '뛰', '뜨', '띄', '띠', '라', '래', '랴', '러', '레', '려', '례', '로', '뢰', '료', '루', '뤄', '뤼', '류', '르', '리', '마', '매', '머', '메', '며', '모', '묘', '무', '뭐', '뮤', '므', '미', '바', '배', '버', '베', '벼', '보', '봐', '부', '뷔', '뷰', '브', '비', '빠', '빼', '뻐', '뼈', '뽀', '뾰', '뿌', '쁘', '삐', '사', '새', '샤', '섀', '서', '세', '셔', '셰', '소', '쇄', '쇠', '쇼', '수', '쉐', '쉬', '슈', '스', '시', '싸', '써', '쎄', '쏘', '쐐', '쑤', '쓰', '씌', '씨', '아', '애', '야', '얘', '어', '에', '여', '예', '오', '와', '왜', '외', '요', '우', '워', '웨', '위', '유', '으', '의', '이', '자', '재', '저', '제', '져', '조', '좌', '죄', '죠', '주', '줘', '쥐', '쥬', '즈', '지', '짜', '째', '쩌', '쪼', '쯔', '찌', '차', '채', '처', '체', '쳐', '초', '최', '추', '춰', '췌', '취', '츄', '츠', '치', '카', '캐', '커', '케', '켜', '코', '콰', '쾌', '쿄', '쿠', '쿼', '퀘', '퀴', '큐', '크', '키', '타', '태', '터', '테', '텨', '토', '퇴', '투', '퉈', '튀', '튜', '트', '티', '파', '패', '퍼', '페', '펴', '폐', '포', '표', '푸', '퓨', '프', '피', '하', '해', '허', '헤', '혀', '혜', '호', '화', '회', '효', '후', '훼', '휘', '휴', '흐', '희', '히']
             extension_rank_4 = [x + y for x in complete_letters for y in complete_letters]
-            self.statistics["call"]["rank_4"] = len(extension_rank_4)
+            self.statistics["call"]["rank4"] = len(extension_rank_4)
             return extension_rank_1 + extension_rank_2 + extension_rank_3 + extension_rank_4
         if self.lang == "ja": # 일본
             extension_rank_1 = lang.suggest_extension_texts_by_rank("1_kanji_300")
-            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            self.statistics["call"]["rank1"] = len(extension_rank_1)
             extension_rank_2 = lang.suggest_extension_texts_by_rank("2_kanji_300")
-            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            self.statistics["call"]["rank2"] = len(extension_rank_2)
             extension_rank_3 = lang.suggest_extension_texts_by_rank("3_kanji_300")
-            self.statistics["call"]["rank_3"] = len(extension_rank_3)
+            self.statistics["call"]["rank3"] = len(extension_rank_3)
             return extension_rank_1 + extension_rank_2 + extension_rank_3
         if self.lang == "en":
             extension_rank_1 = lang.suggest_extension_texts_by_rank(1)
-            self.statistics["call"]["rank_1"] = len(extension_rank_1)
+            self.statistics["call"]["rank1"] = len(extension_rank_1)
             extension_rank_2 = lang.suggest_extension_texts_by_rank(2)
-            self.statistics["call"]["rank_2"] = len(extension_rank_2)
+            self.statistics["call"]["rank2"] = len(extension_rank_2)
             extension_rank_3 = lang.suggest_extension_texts_by_rank(3)
-            self.statistics["call"]["rank_3"] = len(extension_rank_3)
+            self.statistics["call"]["rank3"] = len(extension_rank_3)
             extension_rank_4 = lang.suggest_extension_texts_by_rank(4)
-            self.statistics["call"]["rank_4"] = len(extension_rank_4)
+            self.statistics["call"]["rank4"] = len(extension_rank_4)
             return extension_rank_1 + extension_rank_2 + extension_rank_3 + extension_rank_4
         else:
             print(f"[{datetime.now()}] {self.lang} 해당 국가는 지원하지 않습니다. (EntitySuggestDaily-get_basic_extension)")
