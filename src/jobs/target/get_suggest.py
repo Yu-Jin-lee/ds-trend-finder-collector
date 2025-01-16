@@ -84,7 +84,7 @@ class EntitySuggestDaily:
         self.new_trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_new.txt" # 새로 나온 트렌드 키워드 저장
         self.except_for_valid_trend_keywords_file = f"{self.local_folder_path}/{self.job_id}_except_for_valid_trend_keywords.txt" # 유효하지 않은 트렌드 키워드 저장
         self.local_result_path = f"{self.local_folder_path}/{self.job_id}.jsonl"
-        self.trend_keyword_by_entity_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_entity.json"
+        self.trend_keyword_by_target_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_target.json"
         
         # postgresdb 관련
         self.postgres = get_post_gres(lang)
@@ -392,6 +392,7 @@ class EntitySuggestDaily:
         try:
             # 대상 키워드 서제스트 수집할 entity topic 가져오기 (from DB)
             llm_entity_topic = self.get_llm_entity_topic()
+            self.statistics['topics'] = len(llm_entity_topic)
 
             # 1. 대상 키워드 서제스트 수집
             print(f"[{datetime.now()}] 대상 키워드 서제스트 수집 시작 (수집할 entity topic 개수 : {len(llm_entity_topic)})")
@@ -428,31 +429,28 @@ class EntitySuggestDaily:
         new_trend_keyword_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_new.txt"
         self.hdfs.upload(source=self.new_trend_keyword_file, dest=new_trend_keyword_hdfs_path, overwrite=True)
 
-    @error_notifier
     def extract_trend_keywords_by_entity(self):
         '''
         entity별 트렌드 키워드 추출
         '''
-        entities = self.get_llm_entity_topic()
-        trend_keywords_by_entity = {}
+        start_time = datetime.now()
         if self.local_result_path.endswith(".gz"):
             self.local_result_path = GZipFileHandler.ungzip(self.local_result_path)
         for line in JsonlFileHandler(self.local_result_path).read_generator(): 
-            for suggestion in line['suggestions']:
-                s_type = suggestion['suggest_type']
-                s_subtypes = suggestion['suggest_subtypes']
-                keyword = line['keyword']
-                entity = ' '.join(keyword.split(' ')[:-1])
-                if entity not in entities:
-                    print(f"[{datetime.now()}] {entity}는 대상 entity가 아닙니다.")
-                if entity not in trend_keywords_by_entity: # 딕셔너리에 entity가 없으면 추가
-                    trend_keywords_by_entity[entity] = {}
-                if keyword not in trend_keywords_by_entity[entity]: # 딕셔너리에 keyword가 없으면 추가
-                    trend_keywords_by_entity[entity][keyword] = []
-                if is_trend_keyword(suggestion['text'], s_type, s_subtypes):
-                    trend_keywords_by_entity[entity][keyword].append(suggestion['text'])
-        JsonFileHandler(self.trend_keyword_by_entity_file).write(trend_keywords_by_entity)
-        self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
+            keyword = line['keyword']
+            target = " ".join(keyword.split(' ')[:-1]).strip()
+            extension = keyword.split(' ')[-1]
+                
+            trend_keywords = [suggestion['text'] for suggestion in line['suggestions'] if is_trend_keyword(suggestion['text'], # 트렌드 키워드 추출
+                                                                                                                                suggestion['suggest_type'], 
+                                                                                                                                suggestion['suggest_subtypes'])]
+            JsonlFileHandler(self.trend_keyword_by_target_file).write({"keyword": keyword, "target": target, "extension":extension, "trend_keywords": trend_keywords})
+        if self.local_result_path.endswith(".jsonl"):
+            self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
+        self.trend_keyword_by_target_file = GZipFileHandler.gzip(self.trend_keyword_by_target_file)
+        self.hdfs.upload(source=self.trend_keyword_by_target_file,
+                         dest=f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_by_target.jsonl.gz", overwrite=True)
+        print(f"[{datetime.now()}] {self.lang} {self.service} 대상 키워드별 트렌드 키워드 추출 완료 | Process Time : {datetime.now()-start_time}")
 
     def run(self):
         try:
@@ -488,6 +486,8 @@ class EntitySuggestDaily:
                 f"Statistics: (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})"
             )
             ds_trend_finder_dbgout(self.lang, success_msg)
+            if self.lang in ['ko', 'en']:
+                self.extract_trend_keywords_by_entity()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
