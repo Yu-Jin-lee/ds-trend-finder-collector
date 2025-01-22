@@ -1,6 +1,7 @@
 import psycopg2
 from psycopg2 import OperationalError
 from typing import List, Tuple
+import pandas as pd
 
 class PostGresBase:
     schema_name: str = ""
@@ -160,7 +161,26 @@ class PostGresBase:
         finally:
             conn.close()
         return result
+    
+    @classmethod
+    def get_info_from_task_history_by_task_name_date(cls, 
+                                                     task_name:str, 
+                                                     date:str # yyyymmdd
+                                                     ) -> pd.DataFrame:
+        conn = cls.connection()
+        if conn is None:
+            print("Connection failed. Exiting the operation.")
+            return
 
+        cur = conn.cursor()
+        cur.execute(f"SELECT task_name, job_id, info FROM {cls.schema_name}.task_history WHERE task_name like '{task_name}%' and job_id like '{date}%';")
+        results = cur.fetchall()
+        colnames = [desc[0] for desc in cur.description]
+        df = pd.DataFrame(results, columns=colnames)
+        cur.close()
+        conn.close()
+
+        return df
 
 class PostGresKo(PostGresBase):
     schema_name: str = "public"

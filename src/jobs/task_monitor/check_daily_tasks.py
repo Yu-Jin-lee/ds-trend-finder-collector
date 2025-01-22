@@ -1,6 +1,7 @@
 import argparse
 from datetime import datetime
 
+from utils.postgres import get_post_gres
 from utils.hdfs import HdfsFileHandler
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error, flag_emoji
 
@@ -10,6 +11,7 @@ class DailyTasksMonitor:
         self.date = date
         self.services = ['google', 'youtube']
         self.hdfs = HdfsFileHandler()
+        self.postgres = get_post_gres(lang)
     
     def get_schedule(self, lang:str) -> dict:
         '''
@@ -143,12 +145,35 @@ class DailyTasksMonitor:
 
         return all_success_folders, all_failed_folders, all_success_files, all_failed_files
     
+    def get_suggest_info_stat(self) -> dict:
+        '''
+        suggest 수집 info 필드 통계
+        '''
+        result = {
+            "call":{"total":0, "google":0, "youtube":0, "basic":0, "target":0},
+            "topics":None
+        }
+        call_df = self.postgres.get_info_from_task_history_by_task_name_date("수집-서제스트", self.date)
+        total_calls = 0
+        for i, row in call_df.iterrows():
+            suggest_type = row['task_name'].split("-")[-1]
+            service = row['task_name'].split("-")[-2]
+            for rank, call_cnt in row['info']['call'].items():
+                total_calls += call_cnt
+                result["call"][service] += call_cnt
+                result["call"][suggest_type] += call_cnt
+            if 'topics' in  row['info']:
+                result["topics"] = row['info']['topics']
+        result["call"]["total"] = total_calls
+        return result
+
     def check(self):
         '''
         데일리로 업로드 되어야 할 모든 파일이 업로드 되었는지 확인
         '''
         collect_success_folders, collect_success_files, collect_failed_folders, collect_failed_files, trend_kws, trend_kws_new = self.check_collection_files()
         analysis_success_folders, analysis_failed_folders, analysis_success_files, analysis_failed_files = self.check_analysis_files()
+        suggest_info_stat = self.get_suggest_info_stat()
 
         if (len(collect_failed_folders) > 0 or
             len(collect_failed_files) > 0 or 
@@ -174,8 +199,22 @@ class DailyTasksMonitor:
                             f"  ㄴ유튜브: total({len(trend_kws['youtube'])}개) | new({len(trend_kws_new['youtube'])}개)\n"
                             f" *서제스트 타입별*\n"
                             f"  ㄴ기본: total({len(trend_kws['basic'])}개) | new({len(trend_kws_new['basic'])}개)\n"
-                            f"  ㄴ대상키워드: total({len(trend_kws['target'])}개) | new({len(trend_kws_new['target'])}개)"
+                            f"  ㄴ대상키워드: total({len(trend_kws['target'])}개) | new({len(trend_kws_new['target'])}개)\n"
+                            f"*[서제스트 수집 통계]*\n"
+                            f"  ㄴ전체: {suggest_info_stat['call']['total']}회\n"
+                            f" *서비스별*\n"
+                            f"  ㄴ구글: {suggest_info_stat['call']['google']}회\n"
+                            f"  ㄴ유튜브: {suggest_info_stat['call']['youtube']}회\n"
+                            f" *서제스트 타입별*\n"
+                            f"  ㄴ기본: {suggest_info_stat['call']['basic']}회\n"
+                            f"  ㄴ대상키워드: {suggest_info_stat['call']['target']}회"
                         )
+            if 'topics' in suggest_info_stat:
+                if suggest_info_stat['topics']:
+                    success_msg += f"\n*[대상 키워드 개수]*\n"
+                    success_msg += f"  ㄴ{suggest_info_stat['topics']}개\n"
+            success_msg = success_msg.strip()
+
             print(f"[{datetime.now()}] {success_msg}")
             ds_trend_finder_dbgout(self.lang,
                                    success_msg)
