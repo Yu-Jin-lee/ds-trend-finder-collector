@@ -182,6 +182,35 @@ class PostGresBase:
 
         return df
 
+    @classmethod
+    def get_ne_topics_from_daily_topic(cls, 
+                                       start_date:str, 
+                                       end_date:str, 
+                                       first_seen_cnt:int) -> List[str]:
+        '''
+        daily_topic 테이블에서 일주일안에 등록되지 않은 topic 리스트를 가져오는 함수
+        '''
+        table_name = "daily_topic"
+        conn = cls.connection()
+        if conn is None:
+            print("Connection failed. Exiting the insert operation.")
+            return
+        result = []
+        try:
+            cur = conn.cursor()
+            query = f"SELECT distinct topic FROM {cls.schema_name}.{table_name} dt WHERE job_date between '{start_date}' and '{end_date}' and topic_type ='ne' and first_seen_cnt > {first_seen_cnt};"
+            cur.execute(query)
+            rows = cur.fetchall()
+            for row in rows:
+                result.append(row[0])
+            cur.close()
+        except Exception as e:
+            print(f"Error inserting data: {e}")
+        finally:
+            conn.close()
+        result = list(set(result))
+        return result
+    
 class PostGresKo(PostGresBase):
     schema_name: str = "public"
 

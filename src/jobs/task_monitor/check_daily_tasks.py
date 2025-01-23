@@ -162,8 +162,14 @@ class DailyTasksMonitor:
                 total_calls += call_cnt
                 result["call"][service] += call_cnt
                 result["call"][suggest_type] += call_cnt
-            if 'topics' in  row['info']:
-                result["topics"] = row['info']['topics']
+            if 'topics' in row['info']:
+                topic_info = row['info']['topics']
+                print(f"topic_info: {topic_info} ({type(topic_info)})")
+                if type(topic_info) == dict:
+                    result["topics"] = topic_info['entity']
+                    result["topics_non_entity"] = topic_info['non_entity']
+                else:
+                    result["topics"] = topic_info
         result["call"]["total"] = total_calls
         return result
 
@@ -209,10 +215,14 @@ class DailyTasksMonitor:
                             f"  ㄴ기본: {suggest_info_stat['call']['basic']}회\n"
                             f"  ㄴ대상키워드: {suggest_info_stat['call']['target']}회"
                         )
+            # 대상 키워드(등록 토픽) 개수
             if 'topics' in suggest_info_stat:
                 if suggest_info_stat['topics']:
                     success_msg += f"\n*[대상 키워드 개수]*\n"
-                    success_msg += f"  ㄴ{suggest_info_stat['topics']}개\n"
+                    success_msg += f"  ㄴ 등록: {suggest_info_stat['topics']}개\n"
+                # 대상 키워드(미등록 토픽) 개수
+                if 'topics_non_entity' in suggest_info_stat:
+                    success_msg += f"  ㄴ 미등록: {suggest_info_stat['topics_non_entity']}개\n"
             success_msg = success_msg.strip()
 
             print(f"[{datetime.now()}] {success_msg}")

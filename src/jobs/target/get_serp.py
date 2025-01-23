@@ -189,7 +189,10 @@ class EntitySerpDaily:
             no_new_keywords_count = 0  # 새 키워드가 없었던 횟수
             
             # 새 키워드가 없는 것을 몇 번 확인할지 설정
-            max_no_new_keywords_count = 15
+            if self.lang == "ja":
+                max_no_new_keywords_count = 25
+            else:
+                max_no_new_keywords_count = 15
             
             already_collected_keywords = set() # 이미 수집한 키워드
             if os.path.exists(self.serp_download_local_path): # 서프 수집한 결과 있으면 추가

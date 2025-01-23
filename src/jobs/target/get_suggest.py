@@ -19,7 +19,7 @@ from utils.task_history import TaskHistory
 from utils.data import remove_duplicates_from_new_keywords
 from validator.suggest_validator import SuggestValidator
 from utils.text import extract_initial_next_target_keyword
-from utils.converter import adjust_job_id
+from utils.converter import adjust_job_id, DateConverter
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
 
 def cnt_valid_suggest(suggestions:List[dict], 
@@ -85,6 +85,8 @@ class EntitySuggestDaily:
         self.except_for_valid_trend_keywords_file = f"{self.local_folder_path}/{self.job_id}_except_for_valid_trend_keywords.txt" # 유효하지 않은 트렌드 키워드 저장
         self.local_result_path = f"{self.local_folder_path}/{self.job_id}.jsonl"
         self.trend_keyword_by_target_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_target.json"
+        self.entity_topics_file = f"{self.local_folder_path}/{self.job_id}_topics.txt"
+        self.non_entity_topics_file = f"{self.local_folder_path}/{self.job_id}_topics_non_entity.txt"
         
         # postgresdb 관련
         self.postgres = get_post_gres(lang)
@@ -114,11 +116,40 @@ class EntitySuggestDaily:
             return En()
 
     @error_notifier
-    def get_llm_entity_topic(self) -> List[str]:
+    def get_topics(self) -> List[str]:
         '''
-        get_llm_entity_topic 리스트 가져오기
+        대상 키워드 가져오기
+        등록 토픽(llm_entity_topic) + 미등록 토픽(llm_entity_topic)
         '''
-        return self.postgres.get_topics_from_llm_entity_topic()
+        # 등록 토픽
+        topics_registered = self.postgres.get_topics_from_llm_entity_topic()
+
+        # 미등록 토픽
+        # start_date, end_date 설정
+        end_date = self.job_id[:8]
+        start_date = DateConverter.convert_str_to_datetime(end_date) - timedelta(days=7) # 7일 전
+        start_date = DateConverter.convert_datetime_to_str(start_date, "%Y%m%d")
+        # first_seen_cnt 설정
+        if self.lang in ['ko', 'ja']:
+            first_seen_cnt = 1
+        elif self.lang == "en":
+            first_seen_cnt = 2
+        else:
+            print(f"[{datetime.now()}] Error: get_topics {self.lang} 국가에 대한 first_seen_cnt가 없습니다.")
+        topics_unregistered = self.postgres.get_ne_topics_from_daily_topic(start_date, end_date, first_seen_cnt)
+        print(f"[{datetime.now()}] 등록 토픽 수 : {len(topics_registered)} ({len(set(topics_registered))})")
+        print(f"[{datetime.now()}] 미등록 토픽 수 : {len(topics_unregistered)} ({len(set(topics_unregistered))})")
+        topics_intersection = set.intersection(set(topics_registered), set(topics_unregistered))
+        print(f"[{datetime.now()}] 겹치는 토픽 수 : {len(topics_intersection)}")
+        topics_unregistered = list(set(topics_unregistered) - set(topics_registered))
+        print(f"[{datetime.now()}] 겹치는 토픽 제외한 미등록 토픽 수 : {len(topics_unregistered)} ({len(set(topics_unregistered))})")
+        # 통계 정보에 추가
+        self.statistics['topics'] = {"entity": len(topics_registered), 
+                                     "non_entity": len(topics_unregistered)}
+        # 파일에 저장
+        TXTFileHandler(self.entity_topics_file).write(topics_registered)
+        TXTFileHandler(self.non_entity_topics_file).write(topics_unregistered)
+        return topics_registered + topics_unregistered
         
     @error_notifier
     def get_already_collected_keywords(self) -> List[str]:
@@ -391,13 +422,12 @@ class EntitySuggestDaily:
         # 대상 키워드 서제스트 수집       
         try:
             # 대상 키워드 서제스트 수집할 entity topic 가져오기 (from DB)
-            llm_entity_topic = self.get_llm_entity_topic()
-            self.statistics['topics'] = len(llm_entity_topic)
+            topics = self.get_topics()
 
             # 1. 대상 키워드 서제스트 수집
-            print(f"[{datetime.now()}] 대상 키워드 서제스트 수집 시작 (수집할 entity topic 개수 : {len(llm_entity_topic)})")
-            self.get_target_letter_suggest(llm_entity_topic) # 대상 키워드 + 0, 1단계 서제스트 수집
-            self.get_target_charactor_suggest(llm_entity_topic) # 대상 키워드 + 완성형, 알파벳 서제스트 수집
+            print(f"[{datetime.now()}] 대상 키워드 서제스트 수집 시작 (수집할 topic 개수 : {len(topics)})")
+            self.get_target_letter_suggest(topics) # 대상 키워드 + 0, 1단계 서제스트 수집
+            self.get_target_charactor_suggest(topics) # 대상 키워드 + 완성형, 알파벳 서제스트 수집
             # 압축
             self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         except Exception as e:
@@ -428,6 +458,12 @@ class EntitySuggestDaily:
         
         new_trend_keyword_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_new.txt"
         self.hdfs.upload(source=self.new_trend_keyword_file, dest=new_trend_keyword_hdfs_path, overwrite=True)
+
+        topics_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics.txt"
+        self.hdfs.upload(source=self.entity_topics_file, dest=topics_hdfs_path, overwrite=True)
+
+        non_entity_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics_non_entity.txt"
+        self.hdfs.upload(source=self.non_entity_topics_file, dest=non_entity_hdfs_path, overwrite=True)
 
     def extract_trend_keywords_by_entity(self):
         '''
@@ -483,8 +519,10 @@ class EntitySuggestDaily:
                 f"Message: 서제스트 수집 완료\n"
                 f"Upload Path: {self.hdfs_upload_folder}\n"
                 f"Process Time: {end_time-start_time}\n"
-                f"Statistics: (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})"
-            )
+                f"Statistics:\n"
+                f"   ㄴTopics (entity: {self.statistics['topics']['entity']} | non_entity: {self.statistics['topics']['non_entity']})\n"
+                f"   ㄴTrend Keywords (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})"
+                )
             ds_trend_finder_dbgout(self.lang, success_msg)
             if self.lang in ['ko', 'en']:
                 self.extract_trend_keywords_by_entity()
