@@ -1,4 +1,5 @@
 from typing import List, Union
+from datetime import datetime
 
 from serp.url import URL
 from serp.snippet import Snippet
@@ -29,41 +30,47 @@ class Card:
         return self._title
     
     def extract_title(self) -> Union[str, List[str]]:
-        result = ''
-        # 1. title이 여러개 있는 피처 타입 -> List[str]
-        ## video_results
-        if (self.card['type'] == 'video_results'):
-            if "videos" in self.card:
-                result = " ".join([video['title'] for video in self.card['videos'] if 'title' in video])
-            if "items" in self.card:
-                result = " ".join([item['title'] for item in self.card['items'] if 'title' in item])
-        ## top_stories
-        if (self.card['type'] == 'top_stories'):
-            if "items" in self.card:
-                for item in self.card['items']:
-                    # multi carousels : https://ascentkorea.atlassian.net/wiki/spaces/CJHZ/pages/400424962/Top+stories#Items
-                    if "carousels" in item:
-                        result += " ".join([car['title'] for car in item['carousels']])
-                        result += " "
-                    # items : https://ascentkorea.atlassian.net/wiki/spaces/CJHZ/pages/400424962/Top+stories#Items
-                    else:
-                        result += f" {item['title']}"
-            # single carousels : https://ascentkorea.atlassian.net/wiki/spaces/CJHZ/pages/400424962/Top+stories#Single-carousels
-            if "carousels" in self.card:
-                result += " ".join([car['title'] for car in self.card['carousels'] if 'title' in car])
+        try:
+            result = ''   
+            # 1. title이 여러개 있는 피처 타입 -> List[str]
+            ## video_results
+            if self.card.get('type') == 'video_results':
+                if "videos" in self.card:
+                    result = " ".join([video['title'] for video in self.card['videos'] if 'title' in video])
+                if "items" in self.card:
+                    result = " ".join([item['title'] for item in self.card['items'] if 'title' in item])
             
-        # 2. 타이틀이 하나인 피처 타입 -> str
-        elif 'title' in self.card:
-            result = self.card['title']
-        elif (self.card['type'] == "featured_snippet" and
-              "results" in self.card):
-            if 'title' in self.card['results'][0]:
-                result = self.card['results'][0]['title']
-        # 3. 타이틀이 없는 피처 타입 -> ''
-        else:
-            result = ''
-
-        return result
+            ## top_stories
+            if self.card.get('type') == 'top_stories':
+                if "items" in self.card:
+                    for item in self.card['items']:
+                        # multi carousels
+                        if "carousels" in item:
+                            result += " ".join([car['title'] for car in item['carousels'] if 'title' in car])
+                            result += " "
+                        # items
+                        else:
+                            result += f" {item['title']}"
+                # single carousels
+                if "carousels" in self.card:
+                    result += " ".join([car['title'] for car in self.card['carousels'] if 'title' in car])
+            
+            # 2. 타이틀이 하나인 피처 타입 -> str
+            elif 'title' in self.card:
+                result = self.card['title']
+            
+            elif self.card.get('type') == "featured_snippet" and "results" in self.card:
+                if 'title' in self.card['results'][0]:
+                    result = self.card['results'][0]['title']
+            
+            # 3. 타이틀이 없는 피처 타입 -> ''
+            else:
+                result = ''
+            
+            return result
+        except Exception as e:
+            print(f"[{datetime.now()}] error from extract_url (error_msg: {e} | card : {self.card})")
+            return ""
         
     def extract_url(self) -> Union[URL, List[URL]]:
         url = ''
