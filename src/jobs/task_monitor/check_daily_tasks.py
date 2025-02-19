@@ -1,8 +1,10 @@
 import argparse
 from datetime import datetime
 
-from utils.postgres import get_post_gres
 from utils.hdfs import HdfsFileHandler
+from utils.postgres import get_post_gres
+from utils.task_history import TaskStatus
+from utils.decorator import error_notifier
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error, flag_emoji
 
 class DailyTasksMonitor:
@@ -12,7 +14,9 @@ class DailyTasksMonitor:
         self.services = ['google', 'youtube']
         self.hdfs = HdfsFileHandler()
         self.postgres = get_post_gres(lang)
+        self.slack_prefix_msg = ""
     
+    @error_notifier
     def get_schedule(self, lang:str) -> dict:
         '''
         해당 언어의 스케줄을 가져옴
@@ -52,6 +56,7 @@ class DailyTasksMonitor:
 
         return schedule[lang]
 
+    @error_notifier
     def load_keywords_from_hdfs(self, file_path) -> set:
         """HDFS에서 txt 파일을 읽어와서 키워드 리스트로 반환"""
         try:
@@ -63,6 +68,7 @@ class DailyTasksMonitor:
             print(f"HDFS에서 파일을 불러올 수 없습니다: {e}")
             return []
     
+    @error_notifier
     def check_collection_files(self) -> tuple:
         '''
         수집 관련 파일들이 모두 hdfs에 업로드 되었는지 확인
@@ -111,6 +117,7 @@ class DailyTasksMonitor:
                         all_failed_folders.append(collect_root_folder)
         return all_success_folders, all_success_files, all_failed_folders, all_failed_files, trend_kws, trend_kws_new
     
+    @error_notifier
     def check_analysis_files(self):
         '''
         분석 관련 파일들이 모두 hdfs에 업로드 되었는지 확인
@@ -145,6 +152,7 @@ class DailyTasksMonitor:
 
         return all_success_folders, all_failed_folders, all_success_files, all_failed_files
     
+    @error_notifier
     def get_suggest_info_stat(self) -> dict:
         '''
         suggest 수집 info 필드 통계
@@ -156,6 +164,8 @@ class DailyTasksMonitor:
         call_df = self.postgres.get_info_from_task_history_by_task_name_date("수집-서제스트", self.date)
         total_calls = 0
         for i, row in call_df.iterrows():
+            if row['status'] != TaskStatus.COMPLETED.value:
+                continue
             suggest_type = row['task_name'].split("-")[-1]
             service = row['task_name'].split("-")[-2]
             for rank, call_cnt in row['info']['call'].items():
@@ -187,7 +197,7 @@ class DailyTasksMonitor:
             len(analysis_failed_files) > 0
             ):
             error_msg = (
-                        f"❌{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 실패❌\n"
+                        f"❌{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 실패\n"
                         f"[업로드 되지 않은 폴더, 파일 리스트]\n"
                         f" ㄴ수집: {collect_failed_folders + collect_failed_files}\n"
                         f" ㄴ분석: {analysis_failed_folders + analysis_failed_files}"
@@ -197,7 +207,7 @@ class DailyTasksMonitor:
                                          error_msg)
         else:
             success_msg = (
-                            f"✅{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 완료✅\n"
+                            f"✅{flag_emoji(self.lang)} `{self.lang}` `{self.date}` 모든 작업의 결과 업로드 완료\n"
                             f"*[오늘의 트렌드 키워드]*\n"
                             f"  ㄴ전체: total({len(set(trend_kws['google'] + trend_kws['youtube']))}개) | new({len(set(trend_kws_new['google'] + trend_kws_new['youtube']))}개)\n"
                             f" *서비스별*\n"

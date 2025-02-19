@@ -173,7 +173,7 @@ class PostGresBase:
             return
 
         cur = conn.cursor()
-        cur.execute(f"SELECT task_name, job_id, info FROM {cls.schema_name}.task_history WHERE task_name like '{task_name}%' and job_id like '{date}%';")
+        cur.execute(f"SELECT task_name, job_id, status, info FROM {cls.schema_name}.task_history WHERE task_name like '{task_name}%' and job_id like '{date}%';")
         results = cur.fetchall()
         colnames = [desc[0] for desc in cur.description]
         df = pd.DataFrame(results, columns=colnames)
