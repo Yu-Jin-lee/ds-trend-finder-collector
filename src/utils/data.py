@@ -44,6 +44,47 @@ def remove_duplicates_from_new_keywords(already_keywords:set, new_keywords:set) 
     
     return filtered_keywords
 
+def remove_duplicates_from_new_keywords_ko(already_keywords: set, new_keywords: set) -> set:
+    '''
+    이미 존재하는 키워드 셋(already_keywords)과 새로운 키워드 셋(new_keywords)을 비교하여
+    중복된 키워드를 제거한 새로운 키워드 셋을 반환합니다. 
+    두 셋의 키워드에서 띄어쓰기를 제거하여 동일한 키워드를 식별한 후, 
+    중복되지 않은 키워드만 원래 형태로 반환하며, 같은 키워드가 있을 경우 띄어쓰기가 적은 키워드를 남깁니다.
+
+    Parameters:
+    - already_keywords (set): 중복을 검사할 기존의 키워드 셋.
+    - new_keywords (set): 중복을 제거하고자 하는 새로운 키워드 셋.
+
+    Returns:
+    - set: 중복되지 않은 원본 형태의 새로운 키워드 셋.
+    '''
+    # 띄어쓰기를 제거한 키워드 매핑 생성 (띄어쓰기 적은 형태를 우선으로 저장)
+    def get_preferred_keyword(existing, new):
+        return new if new.count(" ") < existing.count(" ") else existing
+    
+    already_keywords_normalized = {}
+    for keyword in already_keywords:
+        normalized = keyword.replace(" ", "")
+        already_keywords_normalized[normalized] = (
+            get_preferred_keyword(already_keywords_normalized.get(normalized, keyword), keyword)
+        )
+    
+    new_keywords_normalized = {}
+    for keyword in new_keywords:
+        normalized = keyword.replace(" ", "")
+        if normalized in new_keywords_normalized:
+            new_keywords_normalized[normalized] = get_preferred_keyword(new_keywords_normalized[normalized], keyword)
+        else:
+            new_keywords_normalized[normalized] = keyword
+    
+    # 중복되지 않은 키워드를 필터링하고 띄어쓰기 적은 형태를 남김
+    filtered_keywords = {
+        new_keywords_normalized[key] for key in new_keywords_normalized
+        if key not in already_keywords_normalized or new_keywords_normalized[key].count(" ") < already_keywords_normalized[key].count(" ")
+    }
+    
+    return filtered_keywords
+
 def remove_duplicates_preserve_order(lst):
     """
     리스트 순서를 유지하면서 중복을 제거합니다.
@@ -121,3 +162,8 @@ class Trie:
             results.append(prefix)
         for char, next_node in node.children.items():
             self._dfs_with_prefix(next_node, prefix + char, results)
+
+import itertools
+
+def flatten_list(lst):
+    return list(itertools.chain.from_iterable(lst))

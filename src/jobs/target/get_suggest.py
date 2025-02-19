@@ -5,18 +5,23 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 
 from collector.suggest_collector.suggest_collect import Suggest
+from collector.google_trend_collector.google_trend_collector import (
+    filter_google_trend_keywords_ko, 
+    filter_google_trend_keywords_ja,
+    filter_google_trend_keywords_en
+)
 from validator.trend_keyword_validator import is_trend_keyword
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, JsonFileHandler, has_file_extension
 from utils.db import QueryDatabaseKo, QueryDatabaseJa, QueryDatabaseEn
 from utils.text import extract_initial
-from utils.data import combine_dictionary, remove_duplicates_with_spaces
+from utils.data import combine_dictionary, remove_duplicates_with_spaces, flatten_list
 from utils.hdfs import HdfsFileHandler
 from utils.postgres import get_post_gres
 from lang import Ko, Ja, En, filter_en_valid_trend_keyword, filter_en_valid_token_count
 from config import postgres_db_config
 from utils.decorator import error_notifier
 from utils.task_history import TaskHistory
-from utils.data import remove_duplicates_from_new_keywords
+from utils.data import remove_duplicates_from_new_keywords, remove_duplicates_from_new_keywords_ko
 from validator.suggest_validator import SuggestValidator
 from utils.text import extract_initial_next_target_keyword
 from utils.converter import adjust_job_id, DateConverter
@@ -82,11 +87,15 @@ class EntitySuggestDaily:
             os.makedirs(self.local_folder_path)
         self.trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords.txt"
         self.new_trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_new.txt" # 새로 나온 트렌드 키워드 저장
+        self.trend_keyword_google_trend_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_google_trend.txt" # 구글 트렌드 토픽에서 나온 트렌드 키워드 저장
         self.except_for_valid_trend_keywords_file = f"{self.local_folder_path}/{self.job_id}_except_for_valid_trend_keywords.txt" # 유효하지 않은 트렌드 키워드 저장
         self.local_result_path = f"{self.local_folder_path}/{self.job_id}.jsonl"
-        self.trend_keyword_by_target_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_target.json"
+        self.trend_keyword_by_target_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_target.jsonl"
+        self.trend_keyword_by_target_google_trend_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_by_target_google_trend.jsonl" # 구글 트렌드 키워드에서 나온 트렌드 키워드 저장
         self.entity_topics_file = f"{self.local_folder_path}/{self.job_id}_topics.txt"
         self.non_entity_topics_file = f"{self.local_folder_path}/{self.job_id}_topics_non_entity.txt"
+        self.google_trend_topics_file = f"{self.local_folder_path}/{self.job_id}_topics_google_trend.txt"
+        self.google_trend_topics_filtered_file = f"{self.local_folder_path}/{self.job_id}_topics_google_trend_filtered.txt"
         
         # postgresdb 관련
         self.postgres = get_post_gres(lang)
@@ -102,6 +111,9 @@ class EntitySuggestDaily:
         
         # slack 관련
         self.slack_prefix_msg = f"Job Id : `{self.job_id}`\nTask Name : `{self.task_name}`-`{self.lang}`"
+        
+        # 데이터 관련
+        self.topics = {}
 
         # 통계량 관련
         self.statistics = {"call": {}, "valid": {}, "trend_keyword": {}}
@@ -116,40 +128,105 @@ class EntitySuggestDaily:
             return En()
 
     @error_notifier
-    def get_topics(self) -> List[str]:
+    def filtering_google_trend_topics(self, keywords:List[str]):
+        if self.lang == "ko":
+            google_trend_topics = filter_google_trend_keywords_ko(keywords)
+            filtering_keywords = list(set(keywords)-set(google_trend_topics))
+        elif self.lang == "ja":
+            google_trend_topics = filter_google_trend_keywords_ja(keywords)
+            filtering_keywords = list(set(keywords)-set(google_trend_topics))
+        elif self.lang == "en":
+            google_trend_topics = filter_google_trend_keywords_en(keywords)
+            filtering_keywords = list(set(keywords)-set(google_trend_topics))
+        else:
+            print(f"[{datetime.now()}] {self.lang} 국가의 구글 트렌드 필터링 조건이 없습니다. 모든 키워드를 사용합니다.")
+            google_trend_topics = keywords
+            filtering_keywords = []
+        print(f"[{datetime.now()}] 토픽으로 사용될 키워드: {len(google_trend_topics)}개 | 필터링된 키워드: {len(filtering_keywords)}개")
+        return google_trend_topics, filtering_keywords
+    
+    @error_notifier
+    def get_google_trend_topics(self, 
+                                days:int=3 # 구글 트렌드 키워드를 가져올 기간 설정
+                                ) -> Tuple[List, List]:
+        '''
+        {days}기간 까지의 구글 트렌드 키워드 목록을 가져온 뒤 필터링
+        '''
+        today = self.job_id[:8]
+        # print(f"today: {today}")
+                
+        print(f"[{datetime.now()}] {today} 기준 이전 {days}일 구글 트렌드 키워드 목록 가져오기")
+        today_datetime = datetime.strptime(today, "%Y%m%d")
+        past_google_trend_keywords = []
+        for i in range(0, days, 1):
+            date = today_datetime - timedelta(days=i)
+            date = date.strftime("%Y%m%d")
+            target_folder = f"/user/ds/wordpopcorn/{self.lang}/daily/google_trend/{date[:4]}/{date[:6]}/{date[:8]}"
+            # print(f"target_folder: {target_folder}")
+            txt_files = self.get_all_txt_files(target_folder,
+                                               target_file_suffix=".txt")
+            for file in txt_files:
+                past_google_trend_keywords += self.load_keywords_from_hdfs(file)
+
+        past_google_trend_keywords = list(set(past_google_trend_keywords))
+        print(f"키워드 개수 : {len(set(past_google_trend_keywords))}")
+        google_trend_topics, filtering_google_trend_keywords = self.filtering_google_trend_topics(past_google_trend_keywords)
+        return google_trend_topics, filtering_google_trend_keywords
+
+    @error_notifier
+    def get_topics(self) -> dict:
         '''
         대상 키워드 가져오기
-        등록 토픽(llm_entity_topic) + 미등록 토픽(llm_entity_topic)
+        구글 트렌드 토픽 + 등록 토픽(llm_entity_topic) + 미등록 토픽
         '''
-        # 등록 토픽
-        topics_registered = self.postgres.get_topics_from_llm_entity_topic()
+        self.topics = {
+                  "google_trend":[],
+                  "entity":[],
+                  "non_entity":[]
+                  }
+        # 1. 구글 트렌드 토픽
+        google_trend_topics, google_trend_filtered_topics = self.get_google_trend_topics()
+        print(f"[{datetime.now()}] 1. 구글 트렌드 토픽 수 : {len(google_trend_topics)} ({len(set(google_trend_topics))})")
+        self.topics["google_trend"] = google_trend_topics
 
-        # 미등록 토픽
+        # 2. 등록 토픽
+        topics_registered = self.postgres.get_topics_from_llm_entity_topic()
+        print(f"[{datetime.now()}] 2. 등록 토픽 수 : {len(topics_registered)} ({len(set(topics_registered))})")
+        topics_intersection = set.intersection(set(topics_registered), set(google_trend_topics))
+        print(f"[{datetime.now()}] 겹치는 토픽 수 : {len(topics_intersection)}")
+        topics_registered = list(set(topics_registered) - set(topics_intersection))
+        print(f"[{datetime.now()}] 겹치는 토픽 제외한 등록 토픽 수 : {len(topics_registered)} ({len(set(topics_registered))})")
+        self.topics["entity"] = topics_registered
+        
+        # 3. 미등록 토픽
         # start_date, end_date 설정
         end_date = self.job_id[:8]
         start_date = DateConverter.convert_str_to_datetime(end_date) - timedelta(days=7) # 7일 전
         start_date = DateConverter.convert_datetime_to_str(start_date, "%Y%m%d")
         # first_seen_cnt 설정
-        if self.lang in ['ko', 'ja']:
-            first_seen_cnt = 1
-        elif self.lang == "en":
+        if self.lang in ['ko', 'ja', "en"]:
             first_seen_cnt = 2
         else:
             print(f"[{datetime.now()}] Error: get_topics {self.lang} 국가에 대한 first_seen_cnt가 없습니다.")
         topics_unregistered = self.postgres.get_ne_topics_from_daily_topic(start_date, end_date, first_seen_cnt)
-        print(f"[{datetime.now()}] 등록 토픽 수 : {len(topics_registered)} ({len(set(topics_registered))})")
-        print(f"[{datetime.now()}] 미등록 토픽 수 : {len(topics_unregistered)} ({len(set(topics_unregistered))})")
-        topics_intersection = set.intersection(set(topics_registered), set(topics_unregistered))
+        print(f"[{datetime.now()}] 3. 미등록 토픽 수 : {len(topics_unregistered)} ({len(set(topics_unregistered))})")
+        topics_intersection = set.intersection(set(self.topics["google_trend"] + self.topics["entity"]), 
+                                               set(topics_unregistered))
         print(f"[{datetime.now()}] 겹치는 토픽 수 : {len(topics_intersection)}")
-        topics_unregistered = list(set(topics_unregistered) - set(topics_registered))
+        topics_unregistered = list(set(topics_unregistered) - set(topics_intersection))
         print(f"[{datetime.now()}] 겹치는 토픽 제외한 미등록 토픽 수 : {len(topics_unregistered)} ({len(set(topics_unregistered))})")
+        self.topics["non_entity"] = topics_unregistered
+
         # 통계 정보에 추가
-        self.statistics['topics'] = {"entity": len(topics_registered), 
-                                     "non_entity": len(topics_unregistered)}
+        self.statistics['topics'] = {"google_trend": len(self.topics["google_trend"]),
+                                     "entity": len(self.topics["entity"]), 
+                                     "non_entity": len(self.topics["non_entity"])}
         # 파일에 저장
-        TXTFileHandler(self.entity_topics_file).write(topics_registered)
-        TXTFileHandler(self.non_entity_topics_file).write(topics_unregistered)
-        return topics_registered + topics_unregistered
+        TXTFileHandler(self.google_trend_topics_file).write(self.topics["google_trend"])
+        TXTFileHandler(self.google_trend_topics_filtered_file).write(google_trend_filtered_topics)
+        TXTFileHandler(self.entity_topics_file).write(self.topics["entity"])
+        TXTFileHandler(self.non_entity_topics_file).write(self.topics["non_entity"])
+        return self.topics
         
     @error_notifier
     def get_already_collected_keywords(self) -> List[str]:
@@ -237,7 +314,10 @@ class EntitySuggestDaily:
                 TXTFileHandler(self.trend_keyword_file).write(valid_trend_keywords) # valid_trend_keywords 저장
                 TXTFileHandler(self.except_for_valid_trend_keywords_file).write(list(set(trend_keywords) - set(valid_trend_keywords))) # valid_trend_keywords를 제외한 나머지 저장
                 # 새로 나온 트렌드 키워드 추출
-                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.past_trend_keywords), set(valid_trend_keywords)))
+                if self.lang == "ko":
+                    new_trend_keywords = list(remove_duplicates_from_new_keywords_ko(set(self.past_trend_keywords), set(valid_trend_keywords)))
+                else:
+                    new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.past_trend_keywords), set(valid_trend_keywords)))
                 TXTFileHandler(self.new_trend_keyword_file).write(new_trend_keywords)
             except Exception as e:
                 print(f"[{datetime.now()}] 트렌드 키워드 추출 및 저장 실패 : {e}")
@@ -257,29 +337,36 @@ class EntitySuggestDaily:
             return []
         
     @error_notifier
-    def get_all_txt_files(self, date_folder_path) -> List[str]:
-        '''
+    def get_all_txt_files(self, date_folder_path, target_file_suffix: str = "_trend_keywords.txt") -> List[str]:
+        """
         입력한 date_folder_path 하위 경로를 돌면서 .txt 파일 목록을 가져오는 함수
-        '''
+        """
         all_txt_files = []
 
         if not self.hdfs.exist(date_folder_path):
             print(f"[{datetime.now()}] {date_folder_path} 경로가 존재하지 않습니다.")
             return all_txt_files
-        
-        # 현재 폴더의 하위 디렉토리 목록을 가져옴
-        job_id_dirs = [d for d in self.hdfs.list(date_folder_path) if not has_file_extension(d)] # 디렉토리만 가져옴
 
-        # 하위 디렉토리 목록을 순회
+        # date_folder_path 아래 직접 존재하는 .txt 파일 추가
+        root_files = [f"{date_folder_path}/{file}" for file in self.hdfs.list(date_folder_path) 
+                    if file.endswith(target_file_suffix) and has_file_extension(file)]
+        all_txt_files.extend(root_files)
+        # print(f"all_txt_files(1depth): {all_txt_files}")
+        # date_folder_path 아래 하위 디렉토리 탐색
+        job_id_dirs = [d for d in self.hdfs.list(date_folder_path) if not has_file_extension(d)]  # 디렉토리만 가져옴
+        # print(f"job_id_dirs: {job_id_dirs}")
+
         for job_id in job_id_dirs:
             job_id_path = f"{date_folder_path}/{job_id}"
             if not self.hdfs.exist(job_id_path):
                 continue
-            files = self.hdfs.list(job_id_path)
-            for file in files:
-                if file.endswith("_trend_keywords.txt"):
-                    all_txt_files.append(f"{job_id_path}/{file}")
-
+            
+            # 하위 디렉토리 내 파일 추가
+            sub_files = [f"{job_id_path}/{file}" for file in self.hdfs.list(job_id_path) 
+                        if file.endswith(target_file_suffix)]
+            all_txt_files.extend(sub_files)
+        
+        # print(f"all_txt_files(2depth): {all_txt_files}")
         return all_txt_files
 
     @error_notifier
@@ -339,7 +426,8 @@ class EntitySuggestDaily:
                 targets = [topic + t for topic in llm_entity_topic for t in extension_texts] # 서제스트 수집할 키워드 리스트
             else:
                 targets = [topic + " " + t for topic in llm_entity_topic for t in extension_texts] # 서제스트 수집할 키워드 리스트
-
+            targets += llm_entity_topic # 대상 키워드 자체도 추가
+            targets = list(set(targets)) # 중복 제거
             print(f"[{datetime.now()}] 대상 키워드 0, 1 단계 extension text 추가 후 개수 {len(targets)}")
             self.target_letter_suggest_length = len(targets) # 대상 키워드 0, 1단계 서제스트 수집할 개수
             print(f"[{datetime.now()}] self.target_letter_suggest_length : {self.target_letter_suggest_length}")
@@ -423,11 +511,11 @@ class EntitySuggestDaily:
         try:
             # 대상 키워드 서제스트 수집할 entity topic 가져오기 (from DB)
             topics = self.get_topics()
-
+            all_topics = list(set(flatten_list(list(topics.values()))))
             # 1. 대상 키워드 서제스트 수집
-            print(f"[{datetime.now()}] 대상 키워드 서제스트 수집 시작 (수집할 topic 개수 : {len(topics)})")
-            self.get_target_letter_suggest(topics) # 대상 키워드 + 0, 1단계 서제스트 수집
-            self.get_target_charactor_suggest(topics) # 대상 키워드 + 완성형, 알파벳 서제스트 수집
+            print(f"[{datetime.now()}] 대상 키워드 서제스트 수집 시작 (수집할 topic 개수 : {len(all_topics)})")
+            self.get_target_letter_suggest(all_topics) # 대상 키워드 + 0, 1단계 서제스트 수집
+            self.get_target_charactor_suggest(all_topics) # 대상 키워드 + 완성형, 알파벳 서제스트 수집
             # 압축
             self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         except Exception as e:
@@ -450,20 +538,33 @@ class EntitySuggestDaily:
     
     @error_notifier
     def upload_to_hdfs(self):
+        # 서제스트 수집 결과 저장
         target_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}.jsonl.gz"
         self.hdfs.upload(source=self.local_result_path, dest=target_hdfs_path, overwrite=True)
 
+        # 오늘의 모든 트렌드 키워드 저장
         trend_keyword_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords.txt"
         self.hdfs.upload(source=self.trend_keyword_file, dest=trend_keyword_hdfs_path, overwrite=True)
         
+        # n일 전 기준 오늘 새로 나온 트렌드 키워드 저장
         new_trend_keyword_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_new.txt"
         self.hdfs.upload(source=self.new_trend_keyword_file, dest=new_trend_keyword_hdfs_path, overwrite=True)
 
+        # 대상 키워드 토픽 저장
         topics_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics.txt"
         self.hdfs.upload(source=self.entity_topics_file, dest=topics_hdfs_path, overwrite=True)
 
+        # non_entity 대상 키워드 토픽 저장
         non_entity_hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics_non_entity.txt"
         self.hdfs.upload(source=self.non_entity_topics_file, dest=non_entity_hdfs_path, overwrite=True)
+
+        # 구글 트렌드 키워드 토픽 저장 - 수집 대상 키워드
+        hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics_google_trend.txt"
+        self.hdfs.upload(source=self.google_trend_topics_file, dest=hdfs_path, overwrite=True)
+    
+        # 구글 트렌드 키워드 토픽 저장 - 필터링된 키워드
+        hdfs_path = f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_topics_google_trend_filtered.txt"
+        self.hdfs.upload(source=self.google_trend_topics_filtered_file, dest=hdfs_path, overwrite=True)
 
     def extract_trend_keywords_by_entity(self):
         '''
@@ -480,12 +581,20 @@ class EntitySuggestDaily:
             trend_keywords = [suggestion['text'] for suggestion in line['suggestions'] if is_trend_keyword(suggestion['text'], # 트렌드 키워드 추출
                                                                                                                                 suggestion['suggest_type'], 
                                                                                                                                 suggestion['suggest_subtypes'])]
+            if target in self.topics["google_trend"]:
+                JsonlFileHandler(self.trend_keyword_by_target_google_trend_file).write({"keyword": keyword, "target": target, "extension":extension, "trend_keywords": trend_keywords})
+                TXTFileHandler(self.trend_keyword_google_trend_file).write(trend_keywords)
             JsonlFileHandler(self.trend_keyword_by_target_file).write({"keyword": keyword, "target": target, "extension":extension, "trend_keywords": trend_keywords})
         if self.local_result_path.endswith(".jsonl"):
             self.local_result_path = GZipFileHandler.gzip(self.local_result_path)
         self.trend_keyword_by_target_file = GZipFileHandler.gzip(self.trend_keyword_by_target_file)
+        self.trend_keyword_by_target_google_trend_file = GZipFileHandler.gzip(self.trend_keyword_by_target_google_trend_file)
         self.hdfs.upload(source=self.trend_keyword_by_target_file,
                          dest=f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_by_target.jsonl.gz", overwrite=True)
+        self.hdfs.upload(source=self.trend_keyword_by_target_google_trend_file,
+                         dest=f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_by_target_google_trend.jsonl.gz", overwrite=True)
+        self.hdfs.upload(source=self.trend_keyword_google_trend_file,
+                         dest=f"{self.hdfs_upload_folder}/{self.job_id}_{self.suggest_type}_trend_keywords_google_trend.txt", overwrite=True)
         print(f"[{datetime.now()}] {self.lang} {self.service} 대상 키워드별 트렌드 키워드 추출 완료 | Process Time : {datetime.now()-start_time}")
 
     def run(self):
@@ -514,13 +623,14 @@ class EntitySuggestDaily:
                 self.task_history.set_task_error(error_msg=str(e))
         else:
             print(f"[{datetime.now()}] 서제스트 수집 완료")
+            print(f"[{datetime.now()}] statistics: {self.statistics}")
             success_msg = (
                 f"{self.slack_prefix_msg}\n"
                 f"Message: 서제스트 수집 완료\n"
                 f"Upload Path: {self.hdfs_upload_folder}\n"
                 f"Process Time: {end_time-start_time}\n"
                 f"Statistics:\n"
-                f"   ㄴTopics (entity: {self.statistics['topics']['entity']} | non_entity: {self.statistics['topics']['non_entity']})\n"
+                f"   ㄴTopics (google_trend: {self.statistics['topics']['google_trend']} | entity: {self.statistics['topics']['entity']} | non_entity: {self.statistics['topics']['non_entity']})\n"
                 f"   ㄴTrend Keywords (total: {trend_keyword_cnt['total']} | new: {trend_keyword_cnt['new']})"
                 )
             ds_trend_finder_dbgout(self.lang, success_msg)
