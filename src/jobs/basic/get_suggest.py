@@ -8,7 +8,7 @@ from typing import List
 from collector.suggest_collector.suggest_collect import Suggest
 from validator.trend_keyword_validator import is_trend_keyword, cnt_valid_suggest
 from utils.file import JsonlFileHandler, GZipFileHandler, TXTFileHandler, has_file_extension
-from utils.data import Trie, remove_duplicates_from_new_keywords, remove_duplicates_with_spaces
+from utils.data import Trie, remove_duplicates_from_new_keywords, remove_duplicates_from_new_keywords_ko, remove_duplicates_with_spaces
 from utils.hdfs import HdfsFileHandler
 from utils.task_history import TaskHistory
 from utils.slack import ds_trend_finder_dbgout, ds_trend_finder_dbgout_error
@@ -194,7 +194,10 @@ class EntitySuggestDaily:
                 TXTFileHandler(self.trend_keyword_file).write(valid_trend_keywords) # valid_trend_keywords 저장
                 TXTFileHandler(self.except_for_valid_trend_keywords_file).write(list(set(trend_keywords) - set(valid_trend_keywords))) # valid_trend_keywords를 제외한 나머지 저장
                 # 새로 나온 트렌드 키워드 추출
-                new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.past_trend_keywords), set(valid_trend_keywords)))
+                if self.lang == "ko":
+                    new_trend_keywords = list(remove_duplicates_from_new_keywords_ko(set(self.past_trend_keywords), set(valid_trend_keywords)))
+                else:
+                    new_trend_keywords = list(remove_duplicates_from_new_keywords(set(self.past_trend_keywords), set(valid_trend_keywords)))
                 TXTFileHandler(self.new_trend_keyword_file).write(new_trend_keywords)
             except Exception as e:
                 print(f"[{datetime.now()}] 트렌드 키워드 추출 및 저장 실패 : {e}")
