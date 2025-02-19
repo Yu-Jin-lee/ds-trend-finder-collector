@@ -149,10 +149,12 @@ class EntitySerpDaily:
         '''
         domestic_serp_count = self.count_line(self.serp_download_local_path)
         non_domestic_serp_count = self.count_line(self.serp_download_local_path_non_domestic)
+        failed_count = 0
         return {
             "total": domestic_serp_count + non_domestic_serp_count,
             "domestic": domestic_serp_count,
-            "non_domestic": non_domestic_serp_count
+            "non_domestic": non_domestic_serp_count,
+            "failed": failed_count
         }
     
     @error_notifier
@@ -241,7 +243,7 @@ class EntitySerpDaily:
             if self.log_task_history:
                 self.task_history_updater.set_task_completed(additional_info=statistic)
             ds_trend_finder_dbgout(self.lang,
-                                   f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}\nStatistics : (total: {statistic['total']} | domestic: {statistic['domestic']} | non_domestic: {statistic['non_domestic']})")
+                                   f"{self.slack_prefix_msg}\nMessage : 서프 수집 완료\nUpload Path : {self.hdfs_upload_folder}\nStatistics : (domestic: {statistic['domestic']} | non_domestic: {statistic['non_domestic']} | total: {statistic['total']} | failed: {statistic['failed']})")
         
 def find_last_job_id(suggest_type, lang, service, today):
     data_path = f"./data/result/{suggest_type}/{service}/{lang}"
