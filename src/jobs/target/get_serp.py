@@ -47,6 +47,7 @@ class EntitySerpDaily:
         self.local_folder_path = f"./data/result/{self.suggest_type}/{self.service}/{self.lang}"
         if not os.path.exists(self.local_folder_path):
             os.makedirs(self.local_folder_path)
+        self.suggest_completed_file = f"{self.local_folder_path}/{self.job_id}.jsonl.gz"
         self.trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords.txt"
         self.new_trend_keyword_file = f"{self.local_folder_path}/{self.job_id}_trend_keywords_new.txt"
         self.serp_download_local_path = f"{self.local_folder_path}/{self.job_id}_serp.jsonl"
@@ -200,7 +201,7 @@ class EntitySerpDaily:
                 for serp in JsonlFileHandler(self.serp_download_local_path).read_generator():
                     already_collected_keywords.add(serp['search_parameters']['q'])
                 print(f"[{datetime.now()}] 기존 서프 수집 완료된 키워드 파악 완료 : {len(already_collected_keywords)}개 키워드")
-            while no_new_keywords_count < max_no_new_keywords_count:
+            while no_new_keywords_count < max_no_new_keywords_count or not os.path.exists(self.suggest_completed_file):
                 # 키워드를 읽음
                 trend_keywords = TXTFileHandler(self.new_trend_keyword_file).read_lines()
                 
@@ -210,9 +211,9 @@ class EntitySerpDaily:
                     
                     # 새로운 키워드를 처리
                     keywords_to_collect_serp = list(set(trend_keywords[last_keyword_count:]) - already_collected_keywords)
-                    print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 1 ({len(keywords_to_collect_serp)})개")
+                    print(f"[{datetime.now()}] 🧹이미 수집된 키워드 제거 후 : ({len(keywords_to_collect_serp)})개")
                     keywords_to_collect_serp = list(set(keywords_to_collect_serp) - set(get_keywords_already_collected_serp(self.lang, self.job_id))) # 오늘 수집한 키워드 제외
-                    print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 2 ({len(keywords_to_collect_serp)})개")
+                    print(f"[{datetime.now()}] 🧹오늘 이미 다른 프로세스에서 수집한 키워드 제거 후 : ({len(keywords_to_collect_serp)})개")
                     self.collect_serp(keywords_to_collect_serp) # 이미 수집한 키워드 제외하고 수집
                     self.append_keywords_to_serp_keywords_txt(keywords_to_collect_serp) # 수집한 키워드 hdfs에 저장
                     already_collected_keywords = set(list(already_collected_keywords) + trend_keywords[last_keyword_count:])
@@ -227,7 +228,12 @@ class EntitySerpDaily:
                     print(f"[{datetime.now()}] 새로운 키워드가 없습니다. {no_new_keywords_count}/{max_no_new_keywords_count} 번째 대기 중...")
                     
                 # 주기적으로 대기 (파일이 다시 채워질 수 있도록 대기)
-                time.sleep(60*1)  # 1분마다 파일을 확인
+                time.sleep(60)  # 1분마다 파일을 확인
+
+                # ".gz" 파일이 생성되지 않았다면 체크 회수를 넘겨도 계속 대기
+                if no_new_keywords_count >= max_no_new_keywords_count and not os.path.exists(self.suggest_completed_file):
+                    no_new_keywords_count = max_no_new_keywords_count - 1  # 계속 대기하도록 카운트를 조정
+                    print(f"[{datetime.now()}] 새로운 키워드가 없지만 {self.suggest_completed_file} 파일이 아직 생성되지 않아 대기 중... ({no_new_keywords_count}/{max_no_new_keywords_count})")
 
             print(f"[{datetime.now()}] 더 이상 키워드가 추가되지 않아 프로세스를 종료합니다.")
 
