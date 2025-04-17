@@ -270,7 +270,7 @@ class SerpCollector:
     def get_serp_from_serp_api(self, 
                                keywords : List[str],
                                domain : str = "suggest_issue",
-                               num_processes : int = 30):
+                               num_processes : int = 10):
         '''
         serp_api를 통해 서프 수집
         '''
