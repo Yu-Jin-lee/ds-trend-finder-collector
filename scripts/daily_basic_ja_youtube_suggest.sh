@@ -14,4 +14,4 @@ else
     echo "로그 디렉터리가 이미 존재합니다: $LOG_DIR"
 fi
 
-nohup /data1/anaconda3/envs/contents/bin/python -u -m jobs.basic.get_suggest --lang ${lang} --service ${service} > ${LOG_DIR}/${jobid}.out 2>&1 &
+nohup /data1/anaconda3/envs/contents/bin/python -u -m jobs.basic.get_suggest_ja --lang ${lang} --service ${service} > ${LOG_DIR}/${jobid}.out 2>&1 &
