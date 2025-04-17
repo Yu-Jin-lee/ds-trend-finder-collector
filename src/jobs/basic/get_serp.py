@@ -1,7 +1,7 @@
 import os
 import time
 import argparse
-from typing import List
+from typing import List, Tuple
 from datetime import datetime
 
 from utils.file import TXTFileHandler, JsonlFileHandler, GZipFileHandler
@@ -43,6 +43,7 @@ class EntitySerpDaily:
         self.project_name = "trend_finder"
         self.suggest_type = "basic"
         self.serp_collector = SerpCollector(lang)
+        self.final_failed_keywords = set()  # 누적 실패 키워드 리스트 초기화
 
         # local 관련
         self.local_folder_path = f"./data/result/{self.suggest_type}/{self.service}/{self.lang}"
@@ -98,12 +99,17 @@ class EntitySerpDaily:
             raise ValueError(f"지원하지 않는 언어입니다. (lang : {self.lang})")
         
     @error_notifier
-    def collect_serp(self, keywords : List[str]):
+    def collect_serp(self, keywords : List[str]) -> Tuple[List[str], List[str]]:
         batch_size = 100
         error_keywords_len = 999
+        retry_count = 0
+        max_retries = 2
+        failed_keywords = []
+        success_keywords = []
 
-        while error_keywords_len > 0: # 에러 키워드가 없을 때까지 반복
+        while retry_count < max_retries: # 최대 2번까지만 retry
             error_keywords = []
+            current_success = []
             for i in range(0, len(keywords), batch_size):
                 print(f"[{datetime.now()}] {i}/{len(keywords)}")
                 res, error_res = self.serp_collector.get_serp_from_serp_api(keywords[i:i+batch_size], 
@@ -120,11 +126,35 @@ class EntitySerpDaily:
                 JsonlFileHandler(self.serp_download_local_path).write(domestic_serps)
                 JsonlFileHandler(self.serp_download_local_path_non_domestic).write(non_domestic_serps)
 
-                error_keywords += [r[0]['query'] for r in error_res if (len(r)>0 and type(r[0])==dict and 'query' in r[0])]
+                # 성공한 키워드와 실패한 키워드 추적
+                try:
+                    current_success += [r['search_parameters']['q'] for r in res if r and 'search_parameters' in r and 'q' in r['search_parameters']]
+                except Exception as e:
+                    print(f"[{datetime.now()}] 성공한 키워드 추출 중 에러 발생: {e}")
+                
+                try:
+                    error_keywords += [r[0]['query'] for r in error_res if (len(r)>0 and type(r[0])==dict and 'query' in r[0])]
+                except Exception as e:
+                    print(f"[{datetime.now()}] 실패한 키워드 추출 중 에러 발생: {e}")
+            
             error_keywords_len = len(error_keywords) # 에러 키워드 수 갱신
             keywords = error_keywords # 에러 키워드로 다시 수집
-            print(f"[{datetime.now()}] 서프 수집 에러 키워드 : {error_keywords_len} 개")
+            retry_count += 1
+            print(f"[{datetime.now()}] 서프 수집 에러 키워드 : {error_keywords_len} 개 (retry count: {retry_count}/{max_retries})")
+            
+            if retry_count == max_retries:
+                failed_keywords = error_keywords
+                success_keywords = list(set(current_success))
+                # 실패한 키워드 추가
+                self.final_failed_keywords.update(failed_keywords)
+                # 성공한 키워드 제거
+                self.final_failed_keywords -= set(success_keywords)
+                
         print(f"[{datetime.now()}] 서프 수집 완료 (local dest : {self.serp_download_local_path})")
+        print(f"[{datetime.now()}] 수집해야 할 키워드 : {len(keywords)} 개")
+        print(f"[{datetime.now()}] 최종 수집 성공 키워드 : {len(success_keywords)} 개")
+        print(f"[{datetime.now()}] 최종 수집 실패 키워드 : {len(failed_keywords)} 개")
+        return success_keywords, failed_keywords
 
     @error_notifier
     def is_domestic_serp(self, serp:dict) -> bool:
@@ -149,12 +179,11 @@ class EntitySerpDaily:
         '''
         domestic_serp_count = self.count_line(self.serp_download_local_path)
         non_domestic_serp_count = self.count_line(self.serp_download_local_path_non_domestic)
-        failed_count = 0
         return {
             "total": domestic_serp_count + non_domestic_serp_count,
             "domestic": domestic_serp_count,
             "non_domestic": non_domestic_serp_count,
-            "failed": failed_count
+            "failed": len(self.final_failed_keywords)  # 최종 실패 키워드 리스트의 길이 사용
         }
     
     @error_notifier
@@ -185,14 +214,17 @@ class EntitySerpDaily:
             no_new_keywords_count = 0  # 새 키워드가 없었던 횟수
             
             # 새 키워드가 없는 것을 몇 번 확인할지 설정
-            max_no_new_keywords_count = 15
+            max_no_new_keywords_count = 7
             
             already_collected_keywords = set() # 이미 수집한 키워드
             if os.path.exists(self.serp_download_local_path): # 서프 수집한 결과 있으면 추가
-                for serp in JsonlFileHandler(self.serp_download_local_path).read_generator():
-                    if serp == []:
-                        continue
-                    already_collected_keywords.add(serp['search_parameters']['q'])
+                try:
+                    for serp in JsonlFileHandler(self.serp_download_local_path).read_generator():
+                        if serp == []:
+                            continue
+                        already_collected_keywords.add(serp['search_parameters']['q'])
+                except Exception as e:
+                    print(f"[{datetime.now()}] 기존 수집 키워드 로드 중 에러 발생: {e}")
             while no_new_keywords_count < max_no_new_keywords_count:
                 # 키워드를 읽음
                 trend_keywords = TXTFileHandler(self.trend_keyword_file).read_lines()
@@ -206,9 +238,9 @@ class EntitySerpDaily:
                     print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 1 ({len(keywords_to_collect_serp)})개")
                     keywords_to_collect_serp = list(set(keywords_to_collect_serp) - set(get_keywords_already_collected_serp(self.lang, self.job_id))) # 오늘 수집한 키워드 제외
                     print(f"[{datetime.now()}] 이미 수집된 키워드 제거 후 2 ({len(keywords_to_collect_serp)})개")
-                    self.collect_serp(keywords_to_collect_serp) # 이미 수집한 키워드 제외하고 수집
-                    self.append_keywords_to_serp_keywords_txt(keywords_to_collect_serp) # 수집한 키워드 hdfs에 저장
-                    already_collected_keywords = set(list(already_collected_keywords) + trend_keywords[last_keyword_count:])
+                    success_keywords, failed_keywords = self.collect_serp(keywords_to_collect_serp) # 이미 수집한 키워드 제외하고 수집
+                    self.append_keywords_to_serp_keywords_txt(success_keywords) # 수집한 키워드 hdfs에 저장
+                    already_collected_keywords = set(list(already_collected_keywords) + success_keywords) # 수집 성공한 키워드만 추가
                     
                     # 마지막으로 처리한 키워드 수 업데이트
                     last_keyword_count = len(trend_keywords)
